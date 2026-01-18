@@ -1,4 +1,4 @@
-# Окончательное техническое ТЗ — Frontend‑only Web‑Python IDE (аналог Trinket Python3) для GitHub Pages
+# Окончательное техническое ТЗ — Frontend‑only Web‑Python IDE для GitHub Pages
 
 ## 0) Коротко о продукте
 Статический веб‑сервис (деплой на GitHub Pages), который даёт в браузере:
@@ -273,7 +273,7 @@ Worker:
 
 ---
 
-## 13) Embed‑режим (как у Trinket, но статически)
+## 13) Embed‑режим (статически)
 Embed — это тот же SPA, но с UI‑флагами в query.
 
 ### 13.1 Параметры
