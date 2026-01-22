@@ -6,13 +6,12 @@ let stdinShared = null;
 let stdinHeader = null;
 let stdinBuffer = null;
 let stdinMode = "message";
-const forceShared =
+const forceSharedBase =
   typeof self !== "undefined" &&
   self.navigator &&
-  (/Firefox/i.test(self.navigator.userAgent || "") ||
-    (/Safari/i.test(self.navigator.userAgent || "") && !/Chrome|Chromium|Edg/i.test(self.navigator.userAgent || "")));
+  (/Safari/i.test(self.navigator.userAgent || "") && !/Chrome|Chromium|Edg/i.test(self.navigator.userAgent || ""));
 if (typeof self !== "undefined") {
-  self.force_shared = forceShared;
+  self.force_shared = forceSharedBase;
 }
 const stdinDecoder = typeof TextDecoder !== "undefined"
   ? new TextDecoder()
@@ -38,6 +37,14 @@ function decodeUtf8Fallback(bytes) {
     return decodeURIComponent(escape(binary));
   } catch (error) {
     return binary;
+  }
+}
+
+function decodeSharedBytes(bytes) {
+  try {
+    return String(stdinDecoder.decode(bytes));
+  } catch (error) {
+    return decodeUtf8Fallback(bytes);
   }
 }
 
@@ -105,12 +112,22 @@ function setupSharedStdin(shared) {
     }
     const length = Atomics.load(stdinHeader, 1);
     const safeLength = Number.isFinite(length) ? Math.max(0, Math.min(length, stdinBuffer.length)) : 0;
-    const slice = stdinBuffer.subarray(0, safeLength);
+    let slice = stdinBuffer.subarray(0, safeLength);
     Atomics.store(stdinHeader, 0, 0);
     Atomics.store(stdinHeader, 1, 0);
-    const decoded = String(stdinDecoder.decode(slice));
+    let decoded = decodeSharedBytes(slice);
     if (!decoded && safeLength > 0) {
       return decodeUtf8Fallback(slice);
+    }
+    if (!decoded && safeLength === 0) {
+      let fallbackLength = 0;
+      while (fallbackLength < stdinBuffer.length && stdinBuffer[fallbackLength] !== 0) {
+        fallbackLength += 1;
+      }
+      if (fallbackLength > 0) {
+        slice = stdinBuffer.subarray(0, fallbackLength);
+        decoded = decodeSharedBytes(slice);
+      }
     }
     return decoded;
   };
@@ -132,7 +149,11 @@ function setupSharedStdin(shared) {
 
 async function initializeRuntime(message) {
   self.stdin_blocking = null;
-  if (setupSharedStdin(message.stdinShared)) {
+  const sharedReady = setupSharedStdin(message.stdinShared);
+  if (typeof self !== "undefined") {
+    self.force_shared = forceSharedBase && sharedReady;
+  }
+  if (sharedReady) {
     stdinMode = "shared";
   } else {
     stdinMode = "message";
@@ -185,7 +206,7 @@ async function initializeRuntime(message) {
     postMessage({ type: "stdin_mode", mode: stdinMode });
   };
   postMessage({ type: "stdin_mode", mode: stdinMode });
-  if (forceShared && stdinShared) {
+  if (forceSharedBase && stdinShared) {
     self.set_stdin_mode("shared");
   }
   postMessage({ type: "ready" });
