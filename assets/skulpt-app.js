@@ -9,7 +9,6 @@ const CONFIG = {
   TAB_SIZE: 4,
   WORD_WRAP: true
 };
-const STDIN_SHARED_BYTES = 8192;
 
 const VALID_FILENAME = /^[A-Za-z0-9._-]+$/;
 const encoder = typeof TextEncoder !== "undefined"
@@ -63,7 +62,6 @@ const RUN_STATUS_LABELS = {
   error: "Ошибка",
   stopped: "Остановлено"
 };
-const COI_RELOAD_KEY = "shp-coi-reload";
 const TURTLE_CANVAS_WIDTH = 400;
 const TURTLE_CANVAS_HEIGHT = 300;
 const TURTLE_SPEED_PRESETS = [
@@ -85,24 +83,15 @@ const state = {
     wordWrap: CONFIG.WORD_WRAP,
     turtleSpeed: "ultra"
   },
-  worker: null,
-  workerReady: false,
-  skulptReady: false,
+  runtimeReady: false,
   stdinResolver: null,
   runToken: 0,
-  stopRequested: false,
   skulptFiles: null,
   skulptAssets: null,
   runtimeBlocked: false,
   stdinQueue: [],
   stdinWaiting: false,
-  stdinMode: "message",
-  stdinShared: null,
-  stdinHeader: null,
-  stdinBuffer: null,
-  lastStdinRequestMode: null,
   runTimeout: null,
-  hardStopTimer: null,
   outputBytes: 0,
   saveTimer: null,
   draftTimer: null,
@@ -115,7 +104,6 @@ const state = {
   }
 };
 
-let workerGeneration = 0;
 
 const els = {
   guard: document.getElementById("guard"),
@@ -161,30 +149,6 @@ const els = {
   turtleCanvas: document.getElementById("turtle-canvas"),
   turtleClear: document.getElementById("turtle-clear")
 };
-
-const DEBUG_ENABLED = typeof location !== "undefined" && location.search.includes("debug=1");
-if (DEBUG_ENABLED && typeof window !== "undefined") {
-  window.__mshpDebug = {
-    getStdinMode: () => state.stdinMode,
-    getStdinWaiting: () => state.stdinWaiting,
-    getLastStdinRequestMode: () => state.lastStdinRequestMode,
-    getStdinHeader: () => {
-      if (!state.stdinHeader) {
-        return null;
-      }
-      const flag = Atomics.load(state.stdinHeader, 0);
-      const length = Atomics.load(state.stdinHeader, 1);
-      return [flag, length];
-    },
-    getStdinBytes: (count = 8) => {
-      if (!state.stdinBuffer) {
-        return null;
-      }
-      return Array.from(state.stdinBuffer.slice(0, count));
-    },
-    writeSharedDebug: (value) => writeSharedStdin(value)
-  };
-}
 
 const turtleRenderer = {
   ready: false,
@@ -967,31 +931,6 @@ function getMemoryStore(storeName) {
   return memoryDb[storeName] || null;
 }
 
-function safeSessionGet(key) {
-  try {
-    return sessionStorage.getItem(key);
-  } catch (error) {
-    return null;
-  }
-}
-
-function safeSessionSet(key, value) {
-  try {
-    sessionStorage.setItem(key, value);
-    return true;
-  } catch (error) {
-    return false;
-  }
-}
-
-function safeSessionRemove(key) {
-  try {
-    sessionStorage.removeItem(key);
-  } catch (error) {
-    // Ignore.
-  }
-}
-
 function safeLocalGet(key) {
   try {
     return localStorage.getItem(key);
@@ -1014,7 +953,6 @@ init();
 async function init() {
   showGuard(true);
   bindUi();
-  await registerServiceWorker();
   state.db = await openDb();
   if (!state.db) {
     showToast("Storage fallback: changes will not persist in this browser.");
@@ -1023,41 +961,6 @@ async function init() {
   initSkulpt();
   await router();
   window.addEventListener("hashchange", router);
-}
-
-async function ensureRuntimeCompatibility(swEnabled) {
-  if (typeof globalThis !== "undefined" && globalThis.crossOriginIsolated === true) {
-    safeSessionRemove(COI_RELOAD_KEY);
-    return { ok: true, reloading: false };
-  }
-  if (!swEnabled) {
-    return { ok: true, reloading: false };
-  }
-
-  await waitForServiceWorkerReady();
-  if (typeof globalThis !== "undefined" && globalThis.crossOriginIsolated === true) {
-    safeSessionRemove(COI_RELOAD_KEY);
-    return { ok: true, reloading: false };
-  }
-
-  if (!safeSessionGet(COI_RELOAD_KEY)) {
-    if (!safeSessionSet(COI_RELOAD_KEY, "1")) {
-      return { ok: true, reloading: false };
-    }
-    location.reload();
-    return { ok: false, reloading: true };
-  }
-  return { ok: true, reloading: false };
-}
-
-function waitForServiceWorkerReady(timeoutMs = 1500) {
-  if (!("serviceWorker" in navigator)) {
-    return Promise.resolve(false);
-  }
-  return Promise.race([
-    navigator.serviceWorker.ready.then(() => true),
-    new Promise((resolve) => setTimeout(() => resolve(false), timeoutMs))
-  ]);
 }
 
 function bindUi() {
@@ -1128,10 +1031,6 @@ function bindUi() {
   }
   document.addEventListener("keydown", onTurtleKeyDown);
   document.addEventListener("keyup", onTurtleKeyUp);
-}
-
-async function registerServiceWorker() {
-  return false;
 }
 
 function showGuard(show) {
@@ -1619,7 +1518,9 @@ function escapeHtml(value) {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function wrapToken(value, type) {
@@ -2081,11 +1982,12 @@ async function shareProject() {
 
   const { payload, shareId } = await buildPayload(payloadBytes);
   const url = `${location.origin}${location.pathname}#/s/${shareId}?p=${payload}`;
+  const safeUrl = escapeHtml(url);
   const modalBody = `
     <div class="modal-card">
       <h3>Ссылка на снимок</h3>
       <p>Неизменяемая ссылка на текущий снимок проекта.</p>
-      <input class="modal-input" value="${url}" readonly />
+      <input class="modal-input" value="${safeUrl}" readonly />
       <div class="modal-actions">
         <button class="btn ghost" data-action="close">Закрыть</button>
         <button class="btn primary" data-action="copy">Скопировать</button>
@@ -2516,10 +2418,10 @@ function enableConsoleInput(enable) {
 
 function submitConsoleInput() {
   const value = els.consoleInput.value;
-  if (!value) {
+  els.consoleInput.value = "";
+  if (!value && !state.stdinWaiting && !state.stdinResolver) {
     return;
   }
-  els.consoleInput.value = "";
   appendConsole(`${value}\n`, false);
   if (state.stdinResolver) {
     const resolver = state.stdinResolver;
@@ -2571,58 +2473,13 @@ function formatSkulptError(error) {
   return String(error);
 }
 
-function resetSharedStdin() {
-  state.stdinShared = null;
-  state.stdinHeader = null;
-  state.stdinBuffer = null;
-  state.stdinMode = "message";
-}
-
-function setupSharedStdin() {
-  resetSharedStdin();
-  if (typeof SharedArrayBuffer !== "function" || typeof Atomics !== "object" || typeof Atomics.notify !== "function") {
-    return null;
-  }
-  try {
-    const shared = new SharedArrayBuffer(STDIN_SHARED_BYTES + 8);
-    state.stdinShared = shared;
-    state.stdinHeader = new Int32Array(shared, 0, 2);
-    state.stdinBuffer = new Uint8Array(shared, 8);
-    return shared;
-  } catch (error) {
-    resetSharedStdin();
-    return null;
-  }
-}
-
-function canUseSharedStdin() {
-  return state.stdinHeader && state.stdinBuffer && typeof Atomics === "object" && typeof Atomics.notify === "function";
-}
-
-function writeSharedStdin(value) {
-  if (!state.stdinHeader || !state.stdinBuffer || typeof Atomics !== "object" || typeof Atomics.notify !== "function") {
-    return false;
-  }
-  const bytes = encoder.encode(String(value ?? ""));
-  const maxLength = state.stdinBuffer.length;
-  const length = Math.min(bytes.length, maxLength);
-  if (length > 0) {
-    state.stdinBuffer.set(bytes.subarray(0, length), 0);
-  }
-  Atomics.store(state.stdinHeader, 1, length);
-  Atomics.store(state.stdinHeader, 0, 1);
-  Atomics.notify(state.stdinHeader, 0, 1);
-  return true;
-}
-
 function initSkulpt() {
   if (typeof window === "undefined" || typeof window.Sk === "undefined") {
     state.runtimeBlocked = true;
     setGuardMessage("Skulpt не загружен", "Проверьте подключение библиотек Skulpt.");
     return;
   }
-  state.workerReady = true;
-  state.skulptReady = true;
+  state.runtimeReady = true;
   updateRunStatus("idle");
   showGuard(false);
 }
@@ -2876,14 +2733,14 @@ async function runActiveFile() {
     showGuard(true);
     return;
   }
-  if (!state.workerReady) {
+  if (!state.runtimeReady) {
     showGuard(true);
     return;
   }
   const entryName = getActiveTabName() || state.activeFile;
   const file = getFileByName(entryName);
   if (!file) {
-    showToast("?????? ?????????????????? ??????????.");
+    showToast("No active file.");
     return;
   }
   clearConsole();
@@ -2893,7 +2750,6 @@ async function runActiveFile() {
   state.stdinQueue = [];
   state.stdinWaiting = false;
   state.stdinResolver = null;
-  state.stopRequested = false;
 
   const files = getCurrentFiles();
   const assets = state.mode === "project" ? await loadAssets() : [];
@@ -2908,7 +2764,7 @@ async function runActiveFile() {
     clearTimeout(state.runTimeout);
   }
   state.runTimeout = setTimeout(() => {
-    softInterrupt("???????????????? ?????????? ??????????????.");
+    softInterrupt("Time limit exceeded.");
     stopRun();
   }, CONFIG.RUN_TIMEOUT_MS + 200);
 
@@ -2942,9 +2798,8 @@ async function runActiveFile() {
 }
 
 function stopRun() {
-  state.stopRequested = true;
   state.runToken += 1;
-  softInterrupt("?????????????????????? ??????????????????????????.");
+  softInterrupt("Stopped by user.");
   hardStop();
 }
 
@@ -2957,10 +2812,6 @@ function hardStop() {
   if (state.runTimeout) {
     clearTimeout(state.runTimeout);
     state.runTimeout = null;
-  }
-  if (state.hardStopTimer) {
-    clearTimeout(state.hardStopTimer);
-    state.hardStopTimer = null;
   }
   if (typeof Sk !== "undefined") {
     Sk.execLimit = 1;
@@ -3774,13 +3625,17 @@ function closeModal() {
 
 async function promptModal({ title, placeholder, value, confirmText }) {
   return new Promise((resolve) => {
+    const safeTitle = escapeHtml(String(title || ""));
+    const safePlaceholder = escapeHtml(String(placeholder || ""));
+    const safeValue = escapeHtml(String(value || ""));
+    const safeConfirm = escapeHtml(String(confirmText || "OK"));
     const html = `
       <div class="modal-card">
-        <h3>${title}</h3>
-        <input class="modal-input" value="${value || ""}" placeholder="${placeholder || ""}" />
+        <h3>${safeTitle}</h3>
+        <input class="modal-input" value="${safeValue}" placeholder="${safePlaceholder}" />
         <div class="modal-actions">
-          <button class="btn ghost" data-action="cancel">Отмена</button>
-          <button class="btn primary" data-action="confirm">${confirmText || "Ок"}</button>
+          <button class="btn ghost" data-action="cancel">Cancel</button>
+          <button class="btn primary" data-action="confirm">${safeConfirm}</button>
         </div>
       </div>
     `;
@@ -3800,13 +3655,16 @@ async function promptModal({ title, placeholder, value, confirmText }) {
 
 async function confirmModal({ title, message, confirmText }) {
   return new Promise((resolve) => {
+    const safeTitle = escapeHtml(String(title || ""));
+    const safeMessage = escapeHtml(String(message || ""));
+    const safeConfirm = escapeHtml(String(confirmText || "Confirm"));
     const html = `
       <div class="modal-card">
-        <h3>${title}</h3>
-        <p>${message}</p>
+        <h3>${safeTitle}</h3>
+        <p>${safeMessage}</p>
         <div class="modal-actions">
-          <button class="btn ghost" data-action="cancel">Отмена</button>
-          <button class="btn danger" data-action="confirm">${confirmText || "Подтвердить"}</button>
+          <button class="btn ghost" data-action="cancel">Cancel</button>
+          <button class="btn danger" data-action="confirm">${safeConfirm}</button>
         </div>
       </div>
     `;
