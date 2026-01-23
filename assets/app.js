@@ -9,6 +9,7 @@ const CONFIG = {
   TAB_SIZE: 4,
   WORD_WRAP: true
 };
+const MAIN_FILE = "main.py";
 const STDIN_SHARED_BYTES = 8192;
 
 const VALID_FILENAME = /^[A-Za-z0-9._\-\u0400-\u04FF]+$/;
@@ -135,7 +136,6 @@ const els = {
   resetBtn: document.getElementById("reset-btn"),
   tabSizeBtn: document.getElementById("tab-size-btn"),
   wrapBtn: document.getElementById("wrap-btn"),
-  runTarget: document.getElementById("run-target"),
   turtleSpeedRange: document.getElementById("turtle-speed"),
   turtleSpeedLabel: document.getElementById("turtle-speed-label"),
   sidebar: document.getElementById("sidebar"),
@@ -378,9 +378,6 @@ function bindUi() {
   els.runBtn.addEventListener("click", runActiveFile);
   els.stopBtn.addEventListener("click", stopRun);
   els.clearBtn.addEventListener("click", clearConsole);
-  if (els.runTarget) {
-    els.runTarget.addEventListener("change", () => refreshRunTargets(true));
-  }
   els.shareBtn.addEventListener("click", shareProject);
   els.exportBtn.addEventListener("click", exportProject);
   els.remixBtn.addEventListener("click", remixSnapshot);
@@ -567,6 +564,8 @@ async function openProject(projectId) {
   state.project = project;
   state.snapshot = null;
   state.activeFile = project.lastActiveFile || project.files[0]?.name || null;
+  ensureMainProject();
+  state.activeFile = MAIN_FILE;
 
   setMode("project");
   renderProject();
@@ -593,6 +592,8 @@ function openEphemeralProject() {
   state.project = project;
   state.snapshot = null;
   state.activeFile = project.lastActiveFile || project.files[0]?.name || null;
+  ensureMainProject();
+  state.activeFile = MAIN_FILE;
   setMode("project");
   renderProject();
 }
@@ -604,14 +605,61 @@ function createDefaultProject(projectId, title) {
     title: title || "Без названия",
     files: [
       {
-        name: "main.py",
+        name: MAIN_FILE,
         content: "print(\"Привет из MSHP-IDE!\")\n\nname = input(\"Как вас зовут? \")\nprint(\"Привет,\", name)\n"
       }
     ],
     assets: [],
-    lastActiveFile: "main.py",
+    lastActiveFile: MAIN_FILE,
     updatedAt: Date.now()
   };
+}
+
+function ensureMainFileRecord(files) {
+  if (!Array.isArray(files)) {
+    return false;
+  }
+  const mainIndex = files.findIndex((file) => file.name === MAIN_FILE);
+  if (mainIndex === -1) {
+    files.unshift({ name: MAIN_FILE, content: "" });
+    return true;
+  }
+  if (mainIndex > 0) {
+    const [main] = files.splice(mainIndex, 1);
+    files.unshift(main);
+    return true;
+  }
+  return false;
+}
+
+function ensureMainProject() {
+  if (!state.project) {
+    return;
+  }
+  const changed = ensureMainFileRecord(state.project.files);
+  if (!state.project.lastActiveFile || !getFileByName(state.project.lastActiveFile)) {
+    state.project.lastActiveFile = MAIN_FILE;
+  }
+  if (changed) {
+    scheduleSave();
+  }
+}
+
+function ensureMainSnapshot() {
+  if (!state.snapshot) {
+    return;
+  }
+  const { baseline, draft } = state.snapshot;
+  const hasMainInBaseline = baseline.files.some((file) => file.name === MAIN_FILE);
+  const hasMainInOverlay = Object.prototype.hasOwnProperty.call(draft.overlayFiles, MAIN_FILE);
+  if (!hasMainInBaseline && !hasMainInOverlay) {
+    draft.overlayFiles[MAIN_FILE] = "";
+  }
+  draft.deletedFiles = draft.deletedFiles.filter((name) => name !== MAIN_FILE);
+  if (!draft.draftLastActiveFile || draft.draftLastActiveFile === MAIN_FILE) {
+    draft.draftLastActiveFile = MAIN_FILE;
+  }
+  scheduleDraftSave();
 }
 
 async function openSnapshot(shareId, payload) {
@@ -640,6 +688,8 @@ async function openSnapshot(shareId, payload) {
 
     state.project = null;
     state.activeFile = draft.draftLastActiveFile || baseline.lastActiveFile || baseline.files[0]?.name || null;
+    ensureMainSnapshot();
+    state.activeFile = MAIN_FILE;
 
     setMode("snapshot");
     renderSnapshot();
@@ -674,8 +724,10 @@ function setMode(mode) {
 
 function renderProject() {
   els.projectTitle.textContent = state.project.title;
+  ensureMainFileRecord(state.project.files);
   renderFiles(state.project.files);
   renderAssets(state.project.assets || []);
+  updateFileActionState();
   updateEditorContent();
   updateTabs();
   updateSaveIndicator("Сохранено");
@@ -689,6 +741,7 @@ function renderSnapshot() {
   els.projectTitle.textContent = baseline.title || "Общий снимок";
   renderFiles(getEffectiveFiles());
   renderAssets([]);
+  updateFileActionState();
   updateEditorContent();
   updateTabs();
   updateSaveIndicator("Локальный черновик");
@@ -747,41 +800,6 @@ function updateTabs() {
     tab.addEventListener("click", () => setActiveFile(file.name));
     els.fileTabs.appendChild(tab);
   });
-  refreshRunTargets(true);
-}
-
-function refreshRunTargets(preserveSelection) {
-  if (!els.runTarget) {
-    return;
-  }
-  const files = getCurrentFiles();
-  const previous = preserveSelection ? els.runTarget.value : "";
-  els.runTarget.innerHTML = "";
-  files.forEach((file) => {
-    const option = document.createElement("option");
-    option.value = file.name;
-    option.textContent = file.name;
-    els.runTarget.appendChild(option);
-  });
-  const preferred = previous && getFileByName(previous) ? previous : state.activeFile || files[0]?.name || "";
-  if (preferred) {
-    els.runTarget.value = preferred;
-  }
-}
-
-function getRunTargetName() {
-  if (!els.runTarget) {
-    return state.activeFile || null;
-  }
-  const selected = els.runTarget.value;
-  if (selected && getFileByName(selected)) {
-    return selected;
-  }
-  const fallback = state.activeFile || getCurrentFiles()[0]?.name || null;
-  if (fallback) {
-    els.runTarget.value = fallback;
-  }
-  return fallback;
 }
 
 function setActiveFile(name) {
@@ -793,9 +811,20 @@ function setActiveFile(name) {
     state.snapshot.draft.draftLastActiveFile = name;
     scheduleDraftSave();
   }
+  updateFileActionState();
   renderFiles(getCurrentFiles());
   updateTabs();
   updateEditorContent();
+}
+
+function updateFileActionState() {
+  const locked = state.activeFile === MAIN_FILE;
+  if (els.fileRename) {
+    els.fileRename.disabled = locked || state.embed.readonly;
+  }
+  if (els.fileDelete) {
+    els.fileDelete.disabled = locked || state.embed.readonly;
+  }
 }
 
 function updateEditorContent() {
@@ -986,7 +1015,7 @@ async function createFile() {
     return;
   }
   const name = await promptModal({
-    title: "Создать файл",
+    title: "Создать модуль",
     placeholder: "main.py",
     confirmText: "Создать"
   });
@@ -996,19 +1025,19 @@ async function createFile() {
   const trimmed = name.trim();
   const normalized = normalizePythonFileName(trimmed);
   if (!normalized) {
-    showToast("Можно создавать только файлы .py.");
+    showToast("Можно создавать только модули .py.");
     return;
   }
   if (!validateFileName(normalized)) {
-    showToast("Некорректное имя файла.");
+    showToast("Некорректное имя модуля.");
     return;
   }
   if (getFileByName(normalized)) {
-    showToast("Файл уже существует.");
+    showToast("Модуль уже существует.");
     return;
   }
   if (getCurrentFiles().length >= CONFIG.MAX_FILES) {
-    showToast("Достигнут лимит файлов.");
+    showToast("Достигнут лимит модулей.");
     return;
   }
 
@@ -1037,8 +1066,12 @@ async function renameFile() {
   if (!state.activeFile) {
     return;
   }
+  if (state.activeFile === MAIN_FILE) {
+    showToast("main.py нельзя переименовать.");
+    return;
+  }
   const nextName = await promptModal({
-    title: "Переименовать файл",
+    title: "Переименовать модуль",
     value: state.activeFile,
     confirmText: "Переименовать"
   });
@@ -1048,18 +1081,18 @@ async function renameFile() {
   const trimmed = nextName.trim();
   const normalized = normalizePythonFileName(trimmed);
   if (!normalized) {
-    showToast("Можно создавать только файлы .py.");
+    showToast("Можно создавать только модули .py.");
     return;
   }
   if (normalized === state.activeFile) {
     return;
   }
   if (!validateFileName(normalized)) {
-    showToast("Некорректное имя файла.");
+    showToast("Некорректное имя модуля.");
     return;
   }
   if (getFileByName(normalized)) {
-    showToast("Файл уже существует.");
+    showToast("Модуль уже существует.");
     return;
   }
 
@@ -1106,9 +1139,13 @@ async function deleteFile() {
   if (!name) {
     return;
   }
+  if (name === MAIN_FILE) {
+    showToast("main.py нельзя удалить.");
+    return;
+  }
   const ok = await confirmModal({
-    title: "Удалить файл",
-    message: `Удалить ${name}?`,
+    title: "Удалить модуль",
+    message: `Удалить модуль ${name}?`,
     confirmText: "Удалить"
   });
   if (!ok) {
@@ -1118,7 +1155,7 @@ async function deleteFile() {
   if (state.mode === "project") {
     state.project.files = state.project.files.filter((file) => file.name !== name);
     if (!state.project.files.length) {
-      state.project.files.push({ name: "main.py", content: "" });
+      state.project.files.push({ name: MAIN_FILE, content: "" });
     }
     state.project.lastActiveFile = state.project.files[0].name;
     scheduleSave();
@@ -1218,7 +1255,9 @@ function getEffectiveFiles() {
   Object.entries(draft.overlayFiles).forEach(([name, content]) => {
     map.set(name, { name, content });
   });
-  return Array.from(map.values());
+  const list = Array.from(map.values());
+  ensureMainFileRecord(list);
+  return list;
 }
 
 function updateDraftFile(name, content) {
@@ -1484,14 +1523,14 @@ async function shareProject() {
 
 function validateShareLimits(files) {
   if (files.length > CONFIG.MAX_FILES) {
-    showToast("Шеринг недоступен: слишком много файлов.");
+    showToast("Шеринг недоступен: слишком много модулей.");
     return false;
   }
   let totalBytes = 0;
   for (const file of files) {
     const bytes = encoder.encode(file.content || "").length;
     if (bytes > CONFIG.MAX_SINGLE_FILE_BYTES) {
-      showToast(`Шеринг недоступен: файл ${file.name} слишком большой.`);
+      showToast(`Шеринг недоступен: модуль ${file.name} слишком большой.`);
       return false;
     }
     totalBytes += bytes;
@@ -2139,10 +2178,10 @@ async function runActiveFile() {
     showGuard(true);
     return;
   }
-  const entryName = getRunTargetName();
+  const entryName = "main.py";
   const file = getFileByName(entryName);
   if (!file) {
-    showToast("Нет активного файла.");
+    showToast("Нет main.py.");
     return;
   }
   clearConsole();

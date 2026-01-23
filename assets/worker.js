@@ -305,6 +305,26 @@ def _input(prompt=""):
 
 builtins.input = _input
 sys.path.insert(0, os.getcwd())
+project_dir = os.getcwd()
+project_modules = set()
+try:
+    for fname in os.listdir(project_dir):
+        if fname.endswith(".py"):
+            project_modules.add(os.path.splitext(fname)[0])
+except Exception:
+    project_modules = set()
+for name, module in list(sys.modules.items()):
+    if name == "__main__":
+        continue
+    try:
+        mod_file = getattr(module, "__file__", "")
+    except Exception:
+        mod_file = ""
+    if mod_file and str(mod_file).startswith(project_dir):
+        sys.modules.pop(name, None)
+        continue
+    if name in project_modules:
+        sys.modules.pop(name, None)
 try:
     import turtle
     turtle.reset()
