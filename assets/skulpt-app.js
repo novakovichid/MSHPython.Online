@@ -104,6 +104,7 @@ const state = {
   stdinWaiting: false,
   runTimeout: null,
   stepSession: null,
+  stepLine: null,
   turtleVisible: false,
   turtleUsedLastRun: false,
   outputBytes: 0,
@@ -143,6 +144,7 @@ const els = {
   resetBtn: document.getElementById("reset-btn"),
   tabSizeBtn: document.getElementById("tab-size-btn"),
   wrapBtn: document.getElementById("wrap-btn"),
+  hotkeysBtn: document.getElementById("hotkeys-btn"),
   turtleSpeedRange: document.getElementById("turtle-speed"),
   turtleSpeedLabel: document.getElementById("turtle-speed-label"),
   sidebar: document.getElementById("sidebar"),
@@ -157,6 +159,7 @@ const els = {
   lineNumbers: document.getElementById("line-numbers"),
   editorHighlight: document.getElementById("editor-highlight"),
   editor: document.getElementById("editor"),
+  lineHighlight: document.getElementById("line-highlight"),
   consoleOutput: document.getElementById("console-output"),
   consoleInput: document.getElementById("console-input"),
   consoleSend: document.getElementById("console-send"),
@@ -267,6 +270,9 @@ function bindUi() {
   els.resetBtn.addEventListener("click", resetSnapshot);
   els.tabSizeBtn.addEventListener("click", toggleTabSize);
   els.wrapBtn.addEventListener("click", toggleWrap);
+  if (els.hotkeysBtn) {
+    els.hotkeysBtn.addEventListener("click", showHotkeysModal);
+  }
   if (els.turtleSpeedRange) {
     els.turtleSpeedRange.addEventListener("input", onTurtleSpeedInput);
   }
@@ -290,6 +296,16 @@ function bindUi() {
   });
 
   els.turtleClear.addEventListener("click", () => clearTurtleCanvas());
+
+  document.addEventListener("keydown", (event) => {
+    if (!els.modal.classList.contains("hidden")) {
+      return;
+    }
+    if (event.key === "F8") {
+      event.preventDefault();
+      runActiveFile();
+    }
+  });
 }
 
 function showGuard(show) {
@@ -714,6 +730,71 @@ function syncEditorScroll() {
   els.editorHighlight.scrollTop = els.editor.scrollTop;
   els.editorHighlight.scrollLeft = els.editor.scrollLeft;
   els.lineNumbers.scrollTop = els.editor.scrollTop;
+  updateLineHighlightPosition();
+}
+
+function ensureLineHighlightElement() {
+  if (els.lineHighlight) {
+    return;
+  }
+  const host = els.editorHighlight ? els.editorHighlight.parentElement : null;
+  if (!host) {
+    return;
+  }
+  const highlight = document.createElement("div");
+  highlight.className = "editor-line-highlight";
+  highlight.style.display = "none";
+  host.insertBefore(highlight, els.editorHighlight);
+  els.lineHighlight = highlight;
+}
+
+function setEditorLineHighlight(lineNumber) {
+  if (!Number.isFinite(lineNumber)) {
+    return;
+  }
+  state.stepLine = Math.max(1, Math.floor(lineNumber));
+  ensureLineHighlightElement();
+  updateLineHighlightPosition();
+  scrollEditorToLine(state.stepLine);
+}
+
+function clearEditorLineHighlight() {
+  state.stepLine = null;
+  if (els.lineHighlight) {
+    els.lineHighlight.style.display = "none";
+  }
+}
+
+function scrollEditorToLine(lineNumber) {
+  if (!els.editor) {
+    return;
+  }
+  const computed = getComputedStyle(els.editor);
+  const lineHeight = Number.parseFloat(computed.lineHeight) || 22;
+  const paddingTop = Number.parseFloat(computed.paddingTop) || 0;
+  const lineTop = paddingTop + (lineNumber - 1) * lineHeight;
+  const viewTop = els.editor.scrollTop;
+  const viewBottom = viewTop + els.editor.clientHeight - lineHeight;
+  if (lineTop < viewTop) {
+    els.editor.scrollTop = Math.max(0, lineTop);
+  } else if (lineTop > viewBottom) {
+    els.editor.scrollTop = Math.max(0, lineTop - els.editor.clientHeight + lineHeight);
+  }
+}
+
+function updateLineHighlightPosition() {
+  if (!els.editor || !els.lineHighlight || !state.stepLine) {
+    return;
+  }
+  const computed = getComputedStyle(els.editor);
+  const lineHeight = Number.parseFloat(computed.lineHeight) || 22;
+  const paddingTop = Number.parseFloat(computed.paddingTop) || 0;
+  const maxLine = Math.max(1, (els.editor.value || "").split("\n").length);
+  const lineNumber = Math.min(state.stepLine, maxLine);
+  const top = paddingTop + (lineNumber - 1) * lineHeight - els.editor.scrollTop;
+  els.lineHighlight.style.height = `${lineHeight}px`;
+  els.lineHighlight.style.transform = `translateY(${Math.round(top)}px)`;
+  els.lineHighlight.style.display = "block";
 }
 
 function refreshEditorDecorations() {
@@ -729,6 +810,7 @@ function refreshEditorDecorations() {
   }
   els.lineNumbers.textContent = lines.join("\n");
   syncEditorScroll();
+  updateLineHighlightPosition();
 }
 
 function highlightPython(code) {
@@ -2200,12 +2282,17 @@ async function runActiveFile() {
     return;
   }
   cancelStepSession();
+  clearEditorLineHighlight();
   const entryName = MAIN_FILE;
   const file = getFileByName(entryName);
   if (!file) {
     showToast("Нет main.py.");
     return;
   }
+  if (state.activeFile !== MAIN_FILE) {
+    setActiveFile(MAIN_FILE);
+  }
+  clearEditorLineHighlight();
   const files = getCurrentFiles();
   const usesTurtle = updateTurtleVisibilityForRun(files);
   clearConsole();
@@ -2218,7 +2305,13 @@ async function runActiveFile() {
 
   const assets = state.mode === "project" ? await loadAssets() : [];
 
-  configureSkulptRuntime(files, assets);
+  try {
+    configureSkulptRuntime(files, assets);
+  } catch (error) {
+    appendConsole(`\n${formatSkulptError(error)}\n`, true);
+    hardStop("error");
+    return;
+  }
   const runToken = state.runToken + 1;
   state.runToken = runToken;
   els.stopBtn.disabled = false;
@@ -2283,6 +2376,14 @@ function createStepDebugger(sourceLines, runToken) {
     print: (text) => appendConsole(String(text), false),
     get_source_line: (lineno) => sourceLines[lineno] || ""
   });
+  const originalSetSuspension = debugSession.set_suspension.bind(debugSession);
+  debugSession.set_suspension = (suspension) => {
+    originalSetSuspension(suspension);
+    const active = debugSession.get_active_suspension();
+    if (active && Number.isFinite(active.lineno)) {
+      setEditorLineHighlight(active.lineno);
+    }
+  };
   const originalSuccess = debugSession.success.bind(debugSession);
   debugSession.success = (result) => {
     if (state.runToken !== runToken) {
@@ -2343,7 +2444,13 @@ async function stepRun() {
   const debugSession = createStepDebugger(sourceLines, runToken);
   state.stepSession = { debugger: debugSession, runToken };
 
-  configureSkulptRuntime(files, assets, { debugger: debugSession });
+  try {
+    configureSkulptRuntime(files, assets, { debugger: debugSession });
+  } catch (error) {
+    appendConsole(`\n${formatSkulptError(error)}\n`, true);
+    finishStepSession(runToken, "error");
+    return;
+  }
   els.stopBtn.disabled = false;
   enableConsoleInput(true);
 
@@ -2420,6 +2527,7 @@ function finishStepSession(runToken, status) {
     return;
   }
   state.stepSession = null;
+  clearEditorLineHighlight();
   if (state.runTimeout) {
     clearTimeout(state.runTimeout);
     state.runTimeout = null;
@@ -2441,6 +2549,7 @@ function cancelStepSession() {
     return;
   }
   state.stepSession = null;
+  clearEditorLineHighlight();
   if (state.runTimeout) {
     clearTimeout(state.runTimeout);
     state.runTimeout = null;
@@ -2548,6 +2657,29 @@ function closeModal() {
   els.modal.classList.add("hidden");
   els.modal.setAttribute("aria-hidden", "true");
   els.modal.innerHTML = "";
+}
+
+function showHotkeysModal() {
+  const title = "\u0413\u043e\u0440\u044f\u0447\u0438\u0435 \u043a\u043b\u0430\u0432\u0438\u0448\u0438";
+  const runLabel = "\u0437\u0430\u043f\u0443\u0441\u043a";
+  const html = `
+    <div class="modal-card">
+      <h3>${title}</h3>
+      <ul class="hotkeys-list">
+        <li><strong>F8</strong> — ${runLabel}</li>
+      </ul>
+      <div class="modal-actions">
+        <button class="btn primary" data-action="close">\u041e\u043a</button>
+      </div>
+    </div>
+  `;
+  openModal(html, () => {
+    closeModal();
+  });
+  const button = els.modal.querySelector("[data-action=\"close\"]");
+  if (button) {
+    button.focus();
+  }
 }
 
 async function promptModal({ title, placeholder, value, confirmText, fallbackValue }) {

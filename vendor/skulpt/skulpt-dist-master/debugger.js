@@ -3,8 +3,33 @@
  */
 
 var Sk = Sk || {}; //jshint ignore:line
+var goog = typeof goog !== "undefined"
+    ? goog
+    : {
+        exportSymbol: function (name, obj) {
+            var root = (typeof globalThis !== "undefined")
+                ? globalThis
+                : (typeof window !== "undefined" ? window : this);
+            var parts = String(name || "").split(".");
+            var current = root;
+            for (var i = 0; i < parts.length - 1; i += 1) {
+                if (!parts[i]) continue;
+                if (current[parts[i]] === undefined) {
+                    current[parts[i]] = {};
+                }
+                current = current[parts[i]];
+            }
+            var last = parts[parts.length - 1];
+            if (last) {
+                current[last] = obj;
+            }
+        }
+    };
 
 function hasOwnProperty(obj, prop) {
+    if (!obj || prop === undefined || prop === null) {
+        return false;
+    }
     var proto = obj.constructor.prototype;
     return (prop in obj) &&
         (!(prop in proto) || proto[prop] !== obj[prop]);

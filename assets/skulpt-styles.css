@@ -138,6 +138,11 @@ body {
   font-size: 12px;
 }
 
+.btn.tiny {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -175,8 +180,15 @@ body {
   font-weight: 700;
   background: linear-gradient(140deg, #20c5e7 0%, #1c6bff 100%);
   color: #ffffff;
+  overflow: hidden;
 }
 
+.logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
 .brand-title {
   font-size: 16px;
   font-weight: 700;
@@ -267,6 +279,14 @@ body {
   grid-column: 2 / 3;
 }
 
+.workspace.no-turtle .editor-pane {
+  grid-row: 1 / 2;
+}
+
+.workspace.no-turtle .console-pane {
+  grid-row: 2 / 3;
+}
+
 .sidebar {
   display: grid;
   grid-template-rows: minmax(0, 1fr) minmax(0, 0.6fr);
@@ -294,11 +314,15 @@ body {
   padding: 12px 14px;
   border-bottom: 1px solid var(--border);
   background: rgba(236, 243, 255, 0.95);
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .panel-title {
   font-weight: 600;
   font-size: 14px;
+  flex: 1 1 120px;
+  min-width: 0;
 }
 
 .panel-actions {
@@ -314,6 +338,7 @@ body {
   gap: 6px 8px;
   justify-content: end;
   align-items: center;
+  margin-left: auto;
 }
 
 .panel-actions-files .btn.small {
@@ -406,6 +431,16 @@ body {
   min-height: 0;
 }
 
+.editor-line-highlight {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-left: 3px solid var(--accent-2);
+  background: rgba(26, 181, 216, 0.16);
+  pointer-events: none;
+  z-index: 0;
+}
+
 .editor-highlight {
   position: absolute;
   inset: 0;
@@ -419,6 +454,7 @@ body {
   overflow: auto;
   pointer-events: none;
   scrollbar-width: none;
+  z-index: 1;
 }
 
 .editor-highlight::-webkit-scrollbar {
@@ -463,6 +499,15 @@ body {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.editor-hotkeys {
+  flex-basis: 100%;
+}
+
+.editor-hotkeys .btn {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .editor-actions .run-status {
@@ -670,6 +715,17 @@ body {
   margin-top: 0;
 }
 
+.hotkeys-list {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.hotkeys-list li {
+  margin-bottom: 6px;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -847,6 +903,10 @@ body {
 
   .workspace.no-turtle .console-pane {
     grid-row: 2 / 3;
+  }
+
+  .workspace.no-turtle .editor-pane {
+    grid-row: 1 / 2;
   }
 }
 
