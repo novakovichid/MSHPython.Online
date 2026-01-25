@@ -1920,8 +1920,13 @@ function formatSkulptError(error) {
   if (!error) {
     return "Unknown error";
   }
-  if (typeof Sk !== "undefined" && error instanceof Sk.builtin.BaseException) {
-    return error.toString();
+  try {
+    const baseException = Sk && Sk.builtin && Sk.builtin.BaseException;
+    if (baseException && error instanceof baseException) {
+      return error.toString();
+    }
+  } catch (e) {
+    // fall through to generic formatting
   }
   if (error.stack) {
     return error.stack;

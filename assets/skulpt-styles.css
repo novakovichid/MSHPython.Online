@@ -178,8 +178,9 @@ body {
   display: grid;
   place-items: center;
   font-weight: 700;
-  background: linear-gradient(140deg, #20c5e7 0%, #1c6bff 100%);
-  color: #ffffff;
+  background: #f7f9ff;
+  border: 1px solid var(--border);
+  color: var(--text);
   overflow: hidden;
 }
 
@@ -501,13 +502,8 @@ body {
   flex-wrap: wrap;
 }
 
-.editor-hotkeys {
-  flex-basis: 100%;
-}
-
-.editor-hotkeys .btn {
-  padding-left: 0;
-  padding-right: 0;
+.editor-controls {
+  flex-wrap: nowrap;
 }
 
 .editor-actions .run-status {
@@ -811,12 +807,29 @@ body {
 
 .pill {
   display: inline-flex;
+  align-items: center;
+  gap: 8px;
   padding: 6px 12px;
   border-radius: 999px;
   border: 1px solid rgba(28, 107, 255, 0.2);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.12em;
+}
+
+.pill img {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: #f7f9ff;
+  border: 1px solid var(--border);
+  object-fit: cover;
+}
+
+.pill .pill-name {
+  text-transform: none;
+  letter-spacing: 0.04em;
+  font-weight: 600;
 }
 
 .recent {
