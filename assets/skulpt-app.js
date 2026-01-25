@@ -2590,6 +2590,32 @@ function softInterrupt(message) {
   appendConsole(`\n${message}\n`, true);
 }
 
+function stopTurtleAnimation() {
+  const target = getTurtleTarget();
+  if (!target) {
+    return;
+  }
+  const instance = target.turtleInstance;
+  if (!instance) {
+    return;
+  }
+  if (typeof instance.stop === "function") {
+    try {
+      instance.stop();
+      return;
+    } catch (error) {
+      // fall through to other options
+    }
+  }
+  if (typeof instance.pause === "function") {
+    try {
+      instance.pause();
+    } catch (error) {
+      // ignore pause failures
+    }
+  }
+}
+
 function hardStop(status = "stopped") {
   stopTurtleAnimation();
   if (state.runTimeout) {
