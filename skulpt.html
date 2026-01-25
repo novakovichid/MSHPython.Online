@@ -103,6 +103,111 @@ print("Привет,", name)</pre>
             </div>
           </div>
           <div id="asset-list" class="asset-list"></div>
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'" />
+  <title>&#1052;&#1064;&#1055;&#1072;&#1093;&#1072;.&#1054;&#1085;&#1083;&#1072;&#1081;&#1085; - Web IDE Python</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E🐢%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="assets/skulpt-styles.css" />
+</head>
+<body>
+  <div class="ambient"></div>
+  <div class="noise"></div>
+
+      <div id="guard" class="guard" role="dialog" aria-modal="true">
+    <div class="guard-card">
+      <h2>Loading...</h2>
+      <p>Preparing the runtime. Please wait.</p>
+    </div>
+  </div>
+
+  <div id="modal" class="modal hidden" aria-hidden="true"></div>
+  <div id="toasts" class="toasts"></div>
+
+  <main id="view-landing" class="view landing hidden">
+    <section class="hero">
+      <div class="hero-text">
+        <div class="pill"><img src="assets/shp-logo.webp" alt="" /><span class="pill-name">&#1052;&#1064;&#1055;&#1072;&#1093;&#1072;.&#1054;&#1085;&#1083;&#1072;&#1081;&#1085;</span></div>
+        <h1>Создавайте, запускайте и делитесь Python‑проектами в браузере.</h1>
+        <p>Многофайловые проекты, ввод в консоли, turtle canvas и неизменяемые ссылки. Без сервера. Без аккаунтов.</p>
+        <div class="hero-actions">
+          <button id="new-project" class="btn primary">Новый проект</button>
+        </div>
+      </div>
+      <div class="hero-card">
+        <div class="hero-card-header">Быстрый старт</div>
+        <pre class="hero-code">print("Hello, world!")
+
+name = input("Как вас зовут? ")
+print("Привет,", name)</pre>
+      </div>
+    </section>
+
+    <section class="recent">
+      <div class="section-title">
+        <h2>Недавние проекты</h2>
+        <button id="clear-recent" class="btn ghost">Очистить список</button>
+      </div>
+      <div id="recent-list" class="recent-list"></div>
+    </section>
+  </main>
+
+  <main id="view-ide" class="view ide hidden">
+    <header class="topbar">
+      <a id="home-link" class="brand brand-link" href="#/" title="На главную">
+        <div class="logo"><img src="assets/shp-logo.webp" alt="MSHP" /></div>
+        <div>
+          <div class="brand-title">&#1052;&#1064;&#1055;&#1072;&#1093;&#1072;.&#1054;&#1085;&#1083;&#1072;&#1081;&#1085;</div>
+          <div class="brand-sub">Web IDE Python</div>
+        </div>
+      </a>
+
+      <div class="project-meta">
+        <div id="project-title" class="project-title">Без названия</div>
+        <div id="project-mode" class="project-mode">Проект</div>
+      </div>
+
+      <div class="top-actions">
+        <button id="share-btn" class="btn ghost">Поделиться</button>
+        <button id="export-btn" class="btn ghost">Экспорт</button>
+        <button id="remix-btn" class="btn ghost">Ремикс</button>
+        <button id="reset-btn" class="btn ghost">Сброс</button>
+      </div>
+
+      <div class="top-right">
+        <div id="save-indicator" class="save-indicator">Сохранено</div>
+      </div>
+    </header>
+
+    <div id="snapshot-banner" class="snapshot-banner hidden">Общий снимок. Ваши правки локальны до «Ремикса».</div>
+
+    <section class="workspace no-turtle">
+      <aside id="sidebar" class="sidebar">
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">Модули</div>
+            <div class="panel-actions panel-actions-files">
+              <button id="file-create" class="btn small">+</button>
+              <button id="file-rename" class="btn small">Переименовать</button>
+              <button id="file-duplicate" class="btn small">Дублировать</button>
+              <button id="file-delete" class="btn small danger">Удалить</button>
+            </div>
+          </div>
+          <div id="file-list" class="file-list"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">Ресурсы</div>
+            <div class="panel-actions">
+              <label class="btn small" for="asset-input">Загрузить</label>
+              <input id="asset-input" type="file" multiple class="hidden" />
+            </div>
+          </div>
+          <div id="asset-list" class="asset-list"></div>
         </div>
       </aside>
 
@@ -110,7 +215,6 @@ print("Привет,", name)</pre>
         <div class="editor-toolbar">
           <div class="editor-actions">
             <button id="run-btn" class="btn primary">Запуск</button>
-            <button id="step-btn" class="btn ghost">Построчно</button>
             <button id="stop-btn" class="btn danger" disabled>Стоп</button>
             <div id="run-status" class="run-status">Ожидание</div>
           </div>
@@ -162,7 +266,6 @@ print("Привет,", name)</pre>
 
   <script src="vendor/skulpt/skulpt-dist-master/skulpt.js"></script>
   <script src="vendor/skulpt/skulpt-dist-master/skulpt-stdlib.js"></script>
-  <script src="vendor/skulpt/skulpt-dist-master/debugger.js"></script>
   <script type="module" src="assets/skulpt-app.js"></script>
 </body>
 </html>

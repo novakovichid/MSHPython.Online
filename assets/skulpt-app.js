@@ -15,33 +15,33 @@ const VALID_FILENAME = /^[A-Za-z0-9._\-\u0400-\u04FF]+$/;
 const encoder = typeof TextEncoder !== "undefined"
   ? new TextEncoder()
   : {
-      encode: (text) => {
-        const utf8 = unescape(encodeURIComponent(String(text)));
-        const bytes = new Uint8Array(utf8.length);
-        for (let i = 0; i < utf8.length; i += 1) {
-          bytes[i] = utf8.charCodeAt(i);
-        }
-        return bytes;
+    encode: (text) => {
+      const utf8 = unescape(encodeURIComponent(String(text)));
+      const bytes = new Uint8Array(utf8.length);
+      for (let i = 0; i < utf8.length; i += 1) {
+        bytes[i] = utf8.charCodeAt(i);
       }
-    };
+      return bytes;
+    }
+  };
 const decoder = typeof TextDecoder !== "undefined"
   ? new TextDecoder()
   : {
-      decode: (input) => {
-        const bytes = input instanceof Uint8Array ? input : new Uint8Array(input || []);
-        let binary = "";
-        const chunk = 0x8000;
-        for (let i = 0; i < bytes.length; i += chunk) {
-          binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-        }
-        return decodeURIComponent(escape(binary));
+    decode: (input) => {
+      const bytes = input instanceof Uint8Array ? input : new Uint8Array(input || []);
+      let binary = "";
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
       }
-    };
+      return decodeURIComponent(escape(binary));
+    }
+  };
 const supportsPointerEvents = "PointerEvent" in window;
 const supportsPassiveEvents = (() => {
   let supported = false;
   try {
-    const noop = () => {};
+    const noop = () => { };
     const opts = Object.defineProperty({}, "passive", {
       get() {
         supported = true;
@@ -103,8 +103,7 @@ const state = {
   stdinQueue: [],
   stdinWaiting: false,
   runTimeout: null,
-  stepSession: null,
-  stepLine: null,
+  runTimeout: null,
   turtleVisible: false,
   turtleUsedLastRun: false,
   outputBytes: 0,
@@ -135,7 +134,6 @@ const els = {
   projectMode: document.getElementById("project-mode"),
   saveIndicator: document.getElementById("save-indicator"),
   runBtn: document.getElementById("run-btn"),
-  stepBtn: document.getElementById("step-btn"),
   stopBtn: document.getElementById("stop-btn"),
   clearBtn: document.getElementById("clear-btn"),
   shareBtn: document.getElementById("share-btn"),
@@ -259,9 +257,6 @@ function bindUi() {
   els.clearRecent.addEventListener("click", clearRecentProjects);
 
   els.runBtn.addEventListener("click", runActiveFile);
-  if (els.stepBtn) {
-    els.stepBtn.addEventListener("click", stepRun);
-  }
   els.stopBtn.addEventListener("click", stopRun);
   els.clearBtn.addEventListener("click", clearConsole);
   els.shareBtn.addEventListener("click", shareProject);
@@ -1945,6 +1940,8 @@ function initSkulpt() {
   showGuard(false);
 }
 
+
+
 function getTurtleCanvasSize() {
   if (!els.turtleCanvas) {
     return { width: TURTLE_CANVAS_WIDTH, height: TURTLE_CANVAS_HEIGHT };
@@ -1963,22 +1960,37 @@ function configureSkulptRuntime(files, assets, options = {}) {
   state.skulptAssets = buildSkulptAssetMap(assets);
   const turtleAssets = setSkulptTurtleAssets(assets);
   const turtleSize = getTurtleCanvasSize();
-  const debugSession = options.debugger || null;
-  const enableDebugging = Boolean(debugSession);
+  const debugSession = null; // options.debugger || null;
+  // const enableDebugging = Boolean(debugSession); // Forced off
   Sk.inBrowser = false;
   if (!Sk.asserts) {
     Sk.asserts = {
       assert: () => true,
-      fail: () => {}
+      fail: () => { }
     };
   } else {
     if (typeof Sk.asserts.assert !== "function") {
       Sk.asserts.assert = () => true;
     }
     if (typeof Sk.asserts.fail !== "function") {
-      Sk.asserts.fail = () => {};
+      Sk.asserts.fail = () => { };
     }
   }
+
+  // POLYFILL SK.CONFIGURE
+  if (typeof Sk.configure !== "function") {
+    Sk.configure = function (config) {
+      Sk.output = config.output;
+      Sk.read = config.read;
+      Sk.inputfun = config.inputfun;
+      Sk.inputfunTakesPrompt = config.inputfunTakesPrompt;
+      Sk.execLimit = config.execLimit;
+      Sk.yieldLimit = config.yieldLimit;
+      Sk.syspath = config.syspath;
+      // Debugging and breakpoints suppressed
+    };
+  }
+
   Sk.configure({
     output: (text) => appendConsole(text, false),
     read: skulptRead,
@@ -1987,15 +1999,8 @@ function configureSkulptRuntime(files, assets, options = {}) {
     execLimit: CONFIG.RUN_TIMEOUT_MS,
     yieldLimit: CONFIG.RUN_TIMEOUT_MS,
     syspath: ["/project"],
-    debugging: enableDebugging,
-    breakpoints: enableDebugging
-      ? (filename, lineno, colno) => {
-          if (filename === "__cleanup__" || filename === "__turtle_patch__") {
-            return false;
-          }
-          return debugSession.check_breakpoints(filename, lineno, colno);
-        }
-      : undefined
+    debugging: false,
+    breakpoints: undefined
   });
   Sk.execLimit = CONFIG.RUN_TIMEOUT_MS;
   Sk.execStart = Date.now();
@@ -2299,289 +2304,104 @@ async function runActiveFile() {
     showGuard(true);
     return;
   }
-  cancelStepSession();
-  clearEditorLineHighlight();
-  const entryName = MAIN_FILE;
-  const file = getFileByName(entryName);
-  if (!file) {
-    showToast("Нет main.py.");
-    return;
-  }
-  if (state.activeFile !== MAIN_FILE) {
-    setActiveFile(MAIN_FILE);
-  }
-  clearEditorLineHighlight();
-  const files = getCurrentFiles();
-  const usesTurtle = updateTurtleVisibilityForRun(files);
-  clearConsole();
-  clearTurtleCanvas();
-  updateRunStatus("running");
+  return;
+}
+// cancelStepSession(); // Removed
+clearEditorLineHighlight();
+const entryName = MAIN_FILE;
 
-  state.stdinQueue = [];
-  state.stdinWaiting = false;
-  state.stdinResolver = null;
+const file = getFileByName(entryName);
+if (!file) {
+  showToast("Нет main.py.");
+  return;
+}
+if (state.activeFile !== MAIN_FILE) {
+  setActiveFile(MAIN_FILE);
+}
+clearEditorLineHighlight();
+const files = getCurrentFiles();
+const usesTurtle = updateTurtleVisibilityForRun(files);
+clearConsole();
+clearTurtleCanvas();
+updateRunStatus("running");
 
-  const assets = state.mode === "project" ? await loadAssets() : [];
+state.stdinQueue = [];
+state.stdinWaiting = false;
+state.stdinResolver = null;
 
+const assets = state.mode === "project" ? await loadAssets() : [];
+
+try {
+  configureSkulptRuntime(files, assets);
+} catch (error) {
+  appendConsole(`\n${formatSkulptError(error)}\n`, true);
+  hardStop("error");
+  return;
+}
+const runToken = state.runToken + 1;
+state.runToken = runToken;
+els.stopBtn.disabled = false;
+enableConsoleInput(true);
+
+if (state.runTimeout) {
+  clearTimeout(state.runTimeout);
+}
+state.runTimeout = setTimeout(() => {
+  softInterrupt("Time limit exceeded.");
+  state.runToken += 1;
+  hardStop("error");
+}, CONFIG.RUN_TIMEOUT_MS + 200);
+
+try {
   try {
-    configureSkulptRuntime(files, assets);
-  } catch (error) {
-    appendConsole(`\n${formatSkulptError(error)}\n`, true);
-    hardStop("error");
-    return;
-  }
-  const runToken = state.runToken + 1;
-  state.runToken = runToken;
-  els.stopBtn.disabled = false;
-  enableConsoleInput(true);
-
-  if (state.runTimeout) {
-    clearTimeout(state.runTimeout);
-  }
-  state.runTimeout = setTimeout(() => {
-    softInterrupt("Time limit exceeded.");
-    state.runToken += 1;
-    hardStop("error");
-  }, CONFIG.RUN_TIMEOUT_MS + 200);
-
-  try {
-    try {
-      await Sk.misceval.asyncToPromise(() =>
-        Sk.importMainWithBody("__cleanup__", false, MODULE_CLEANUP_CODE, true)
-      );
-    } catch (error) {
-      // Ignore cleanup failures and proceed with execution.
-    }
-    if (usesTurtle) {
-      try {
-        await Sk.misceval.asyncToPromise(() =>
-          Sk.importMainWithBody("__turtle_patch__", false, TURTLE_PATCH_CODE, true)
-        );
-      } catch (error) {
-        // Ignore patch failures and proceed with execution.
-      }
-    }
     await Sk.misceval.asyncToPromise(() =>
-      Sk.importMainWithBody("__main__", false, String(file.content || ""), true)
+      Sk.importMainWithBody("__cleanup__", false, MODULE_CLEANUP_CODE, true)
     );
-    if (state.runToken !== runToken) {
-      return;
-    }
-    updateRunStatus("done");
   } catch (error) {
-    if (state.runToken !== runToken) {
-      return;
-    }
-    appendConsole(`\n${formatSkulptError(error)}\n`, true);
-    hardStop("error");
-  } finally {
-    if (state.runToken === runToken) {
-      enableConsoleInput(false);
-      els.stopBtn.disabled = true;
-      state.stdinResolver = null;
-      state.stdinWaiting = false;
-      state.stdinQueue = [];
-    }
-    if (state.runTimeout) {
-      clearTimeout(state.runTimeout);
-      state.runTimeout = null;
-    }
+    // Ignore cleanup failures and proceed with execution.
   }
-}
-
-function createStepDebugger(sourceLines, runToken) {
-  const debugSession = new Sk.Debugger("__main__", {
-    print: (text) => appendConsole(String(text), false),
-    get_source_line: (lineno) => sourceLines[lineno] || ""
-  });
-  const originalSetSuspension = debugSession.set_suspension.bind(debugSession);
-  debugSession.set_suspension = (suspension) => {
-    originalSetSuspension(suspension);
-    const active = debugSession.get_active_suspension();
-    if (active && Number.isFinite(active.lineno)) {
-      setEditorLineHighlight(active.lineno);
-    }
-  };
-  const originalSuccess = debugSession.success.bind(debugSession);
-  debugSession.success = (result) => {
-    if (state.runToken !== runToken) {
-      return;
-    }
-    originalSuccess(result);
-    if (debugSession.suspension_stack.length === 0) {
-      finishStepSession(runToken, "done");
-    }
-  };
-  debugSession.error = (error) => {
-    if (state.runToken !== runToken) {
-      return;
-    }
-    appendConsole(`\n${formatSkulptError(error)}\n`, true);
-    finishStepSession(runToken, "error");
-  };
-  return debugSession;
-}
-
-async function stepRun() {
-  if (state.runtimeBlocked) {
-    showGuard(true);
-    return;
-  }
-  if (!state.runtimeReady) {
-    showGuard(true);
-    return;
-  }
-  if (state.stepSession && state.stepSession.debugger) {
-    resumeStepSession();
-    return;
-  }
-  const entryName = MAIN_FILE;
-  const file = getFileByName(entryName);
-  if (!file) {
-    showToast("Нет main.py.");
-    return;
-  }
-  if (!els.stopBtn.disabled) {
-    hardStop("stopped");
-  }
-  const files = getCurrentFiles();
-  const usesTurtle = updateTurtleVisibilityForRun(files);
-  clearConsole();
-  clearTurtleCanvas();
-  updateRunStatus("running");
-
-  state.stdinQueue = [];
-  state.stdinWaiting = false;
-  state.stdinResolver = null;
-
-  const assets = state.mode === "project" ? await loadAssets() : [];
-  const runToken = state.runToken + 1;
-  state.runToken = runToken;
-
-  const sourceLines = String(file.content || "").split(/\r?\n/);
-  const debugSession = createStepDebugger(sourceLines, runToken);
-  state.stepSession = { debugger: debugSession, runToken };
-
-  try {
-    configureSkulptRuntime(files, assets, { debugger: debugSession });
-  } catch (error) {
-    appendConsole(`\n${formatSkulptError(error)}\n`, true);
-    finishStepSession(runToken, "error");
-    return;
-  }
-  els.stopBtn.disabled = false;
-  enableConsoleInput(true);
-
-  if (state.runTimeout) {
-    clearTimeout(state.runTimeout);
-  }
-  state.runTimeout = setTimeout(() => {
-    softInterrupt("Time limit exceeded.");
-    state.runToken += 1;
-    finishStepSession(runToken, "error");
-  }, CONFIG.RUN_TIMEOUT_MS + 200);
-
-  try {
+  if (usesTurtle) {
     try {
       await Sk.misceval.asyncToPromise(() =>
-        Sk.importMainWithBody("__cleanup__", false, MODULE_CLEANUP_CODE, true)
+        Sk.importMainWithBody("__turtle_patch__", false, TURTLE_PATCH_CODE, true)
       );
     } catch (error) {
-      // Ignore cleanup failures and proceed with execution.
+      // Ignore patch failures and proceed with execution.
     }
-    if (usesTurtle) {
-      try {
-        await Sk.misceval.asyncToPromise(() =>
-          Sk.importMainWithBody("__turtle_patch__", false, TURTLE_PATCH_CODE, true)
-        );
-      } catch (error) {
-        // Ignore patch failures and proceed with execution.
-      }
-    }
-    debugSession.enable_step_mode();
-    debugSession
-      .asyncToPromise(
-        () => Sk.importMainWithBody("__main__", false, String(file.content || ""), true),
-        null,
-        debugSession
-      )
-      .then(() => finishStepSession(runToken, "done"))
-      .catch((error) => {
-        if (state.runToken !== runToken) {
-          return;
-        }
-        appendConsole(`\n${formatSkulptError(error)}\n`, true);
-        finishStepSession(runToken, "error");
-      });
-  } catch (error) {
-    if (state.runToken !== runToken) {
-      return;
-    }
-    appendConsole(`\n${formatSkulptError(error)}\n`, true);
-    finishStepSession(runToken, "error");
   }
-}
-
-function resumeStepSession() {
-  const session = state.stepSession;
-  if (!session || !session.debugger) {
+  await Sk.misceval.asyncToPromise(() =>
+    Sk.importMainWithBody("__main__", false, String(file.content || ""), true)
+  );
+  if (state.runToken !== runToken) {
     return;
   }
-  if (state.runToken !== session.runToken) {
-    cancelStepSession();
+  updateRunStatus("done");
+} catch (error) {
+  if (state.runToken !== runToken) {
     return;
   }
-  try {
-    session.debugger.resume();
-  } catch (error) {
-    appendConsole(`\n${formatSkulptError(error)}\n`, true);
-    finishStepSession(session.runToken, "error");
+  appendConsole(`\n${formatSkulptError(error)}\n`, true);
+  hardStop("error");
+} finally {
+  if (state.runToken === runToken) {
+    enableConsoleInput(false);
+    els.stopBtn.disabled = true;
+    state.stdinResolver = null;
+    state.stdinWaiting = false;
+    state.stdinQueue = [];
   }
-}
-
-function finishStepSession(runToken, status) {
-  const session = state.stepSession;
-  if (!session || session.runToken !== runToken) {
-    return;
-  }
-  state.stepSession = null;
-  clearEditorLineHighlight();
   if (state.runTimeout) {
     clearTimeout(state.runTimeout);
     state.runTimeout = null;
   }
-  state.stdinResolver = null;
-  state.stdinWaiting = false;
-  state.stdinQueue = [];
-  enableConsoleInput(false);
-  els.stopBtn.disabled = true;
-  if (status === "done") {
-    updateRunStatus("done");
-  } else {
-    hardStop(status);
-  }
+}
 }
 
-function cancelStepSession() {
-  if (!state.stepSession) {
-    return;
-  }
-  state.stepSession = null;
-  clearEditorLineHighlight();
-  if (state.runTimeout) {
-    clearTimeout(state.runTimeout);
-    state.runTimeout = null;
-  }
-  state.stdinResolver = null;
-  state.stdinWaiting = false;
-  state.stdinQueue = [];
-  enableConsoleInput(false);
-  els.stopBtn.disabled = true;
-}
+// function createStepDebugger etc. removed and archived to archive/step-execution.js
 
 function stopRun() {
   state.runToken += 1;
-  cancelStepSession();
+  // cancelStepSession(); // Removed
   softInterrupt("Stopped by user.");
   hardStop("stopped");
 }

@@ -160,7 +160,15 @@ print("Привет,", name)</pre>
     </section>
   </main>
 
-  <script src="vendor/skulpt/skulpt-dist-master/skulpt.js"></script>
+  <script src="vendor/skulpt/skulpt-dist-master/skulpt.min.js"></script>
+  <script>
+    if (window.Sk && !window.Sk.asserts) {
+      window.Sk.asserts = {
+        assert: function () { return true; },
+        fail: function () {}
+      };
+    }
+  </script>
   <script src="vendor/skulpt/skulpt-dist-master/skulpt-stdlib.js"></script>
   <script src="vendor/skulpt/skulpt-dist-master/debugger.js"></script>
   <script type="module" src="assets/skulpt-app.js"></script>
