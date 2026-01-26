@@ -2120,12 +2120,87 @@ function guessImageMime(name) {
 
 
 
+function getSkulptAssetUrl(name) {
+  if (!name) {
+    return null;
+  }
+  const normalized = normalizeAssetName(name);
+  // Сначала проверяем в загруженных ассетах
+  let url = state.skulptAssetUrls.get(name) ||
+            state.skulptAssetUrls.get(normalized) ||
+            state.skulptAssetUrls.get(`/project/${normalized}`) ||
+            state.skulptAssetUrls.get(`./${normalized}`) ||
+            null;
+  if (url) {
+    return url;
+  }
+  // Если не найдено в ассетах, пытаемся прочитать из файловой системы Skulpt
+  if (!isImageAsset(name)) {
+    return null;
+  }
+  // Проверяем, что Skulpt готов и skulptRead доступна
+  if (!state.skulptFiles || typeof skulptRead !== "function") {
+    return null;
+  }
+  try {
+    const normalizedPath = normalizeSkulptPath(name);
+    const data = skulptRead(normalizedPath);
+    if (!data) {
+      return null;
+    }
+    // Преобразуем данные в Uint8Array, если это строка
+    let bytes;
+    if (typeof data === "string") {
+      bytes = new Uint8Array(data.length);
+      for (let i = 0; i < data.length; i++) {
+        bytes[i] = data.charCodeAt(i) & 0xff;
+      }
+    } else if (data instanceof Uint8Array) {
+      bytes = data;
+    } else if (data instanceof ArrayBuffer) {
+      bytes = new Uint8Array(data);
+    } else {
+      return null;
+    }
+    // Создаем blob URL
+    if (typeof URL === "undefined" || typeof Blob === "undefined") {
+      return null;
+    }
+    const blob = new Blob([bytes], { type: guessImageMime(name) });
+    url = URL.createObjectURL(blob);
+    // Сохраняем в кэш
+    state.skulptAssetUrls.set(name, url);
+    state.skulptAssetUrls.set(normalized, url);
+    state.skulptAssetUrls.set(`/project/${normalized}`, url);
+    state.skulptAssetUrls.set(`./${normalized}`, url);
+    return url;
+  } catch (error) {
+    // Файл не найден или ошибка чтения
+    // Игнорируем IOError и другие ошибки
+    return null;
+  }
+}
+
 function setSkulptTurtleAssets(assets) {
   revokeSkulptAssetUrls();
   const assetMap = {};
   const urlMap = new Map();
   if (!assets || !assets.length) {
-    return assetMap;
+    // Создаем прокси-объект, который будет искать изображения динамически
+    return new Proxy(assetMap, {
+      get(target, prop) {
+        if (prop in target) {
+          return target[prop];
+        }
+        // Если свойство не найдено, пытаемся загрузить из файловой системы
+        const url = getSkulptAssetUrl(String(prop));
+        if (url) {
+          target[prop] = url;
+          return url;
+        }
+        return undefined;
+      }
+    });
   }
   assets.forEach((asset) => {
     const name = String(asset.name || "");
@@ -2156,7 +2231,21 @@ function setSkulptTurtleAssets(assets) {
     urlMap.set(`./${normalized}`, url);
   });
   state.skulptAssetUrls = urlMap;
-  return assetMap;
+  // Создаем прокси-объект, который будет искать изображения динамически
+  return new Proxy(assetMap, {
+    get(target, prop) {
+      if (prop in target) {
+        return target[prop];
+      }
+      // Если свойство не найдено, пытаемся загрузить из файловой системы
+      const url = getSkulptAssetUrl(String(prop));
+      if (url) {
+        target[prop] = url;
+        return url;
+      }
+      return undefined;
+    }
+  });
 }
 
 const TEXT_ASSET_EXTENSIONS = new Set([
