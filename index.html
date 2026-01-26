@@ -1,18 +1,22 @@
 <!doctype html>
 <html lang="ru">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; connect-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'" />
   <title>&#1052;&#1064;&#1055;&#1072;&#1093;&#1072;.&#1054;&#1085;&#1083;&#1072;&#1081;&#1085; - Web IDE Python</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E🐢%3C/text%3E%3C/svg%3E" />
+  <link rel="icon"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E🐢%3C/text%3E%3C/svg%3E" />
   <link rel="stylesheet" href="assets/skulpt-styles.css" />
 </head>
+
 <body>
   <div class="ambient"></div>
   <div class="noise"></div>
 
-      <div id="guard" class="guard" role="dialog" aria-modal="true">
+  <div id="guard" class="guard" role="dialog" aria-modal="true">
     <div class="guard-card">
       <h2>Loading...</h2>
       <p>Preparing the runtime. Please wait.</p>
@@ -25,7 +29,9 @@
   <main id="view-landing" class="view landing hidden">
     <section class="hero">
       <div class="hero-text">
-        <div class="pill"><img src="assets/shp-logo.webp" alt="" /><span class="pill-name">&#1052;&#1064;&#1055;&#1072;&#1093;&#1072;.&#1054;&#1085;&#1083;&#1072;&#1081;&#1085;</span></div>
+        <div class="pill"><img src="assets/shp-logo.webp" alt="" /><span
+            class="pill-name">&#1052;&#1064;&#1055;&#1072;&#1093;&#1072;.&#1054;&#1085;&#1083;&#1072;&#1081;&#1085;</span>
+        </div>
         <h1>Создавайте, запускайте и делитесь Python‑проектами в браузере.</h1>
         <p>Многофайловые проекты, ввод в консоли, turtle canvas и неизменяемые ссылки. Без сервера. Без аккаунтов.</p>
         <div class="hero-actions">
@@ -55,7 +61,8 @@ print("Привет,", name)</pre>
       <a id="home-link" class="brand brand-link" href="#/" title="На главную">
         <div class="logo"><img src="assets/shp-logo.webp" alt="MSHP" /></div>
         <div>
-          <div class="brand-title">&#1052;&#1064;&#1055;&#1072;&#1093;&#1072;.&#1054;&#1085;&#1083;&#1072;&#1081;&#1085;</div>
+          <div class="brand-title">&#1052;&#1064;&#1055;&#1072;&#1093;&#1072;.&#1054;&#1085;&#1083;&#1072;&#1081;&#1085;
+          </div>
           <div class="brand-sub">Web IDE Python</div>
         </div>
       </a>
@@ -110,16 +117,16 @@ print("Привет,", name)</pre>
         <div class="editor-toolbar">
           <div class="editor-actions">
             <button id="run-btn" class="btn primary">Запуск</button>
-            <button id="step-btn" class="btn ghost">Построчно</button>
             <button id="stop-btn" class="btn danger" disabled>Стоп</button>
             <div id="run-status" class="run-status">Ожидание</div>
           </div>
           <div class="editor-controls">
             <button id="tab-size-btn" class="btn chip">Таб: 4</button>
             <button id="wrap-btn" class="btn chip">Перенос: Вкл</button>
-            <button id="hotkeys-btn" class="btn ghost tiny">&#1043;&#1086;&#1088;&#1103;&#1095;&#1080;&#1077; &#1082;&#1083;&#1072;&#1074;&#1080;&#1096;&#1080;</button>
-            </div>
+            <button id="hotkeys-btn" class="btn ghost tiny">&#1043;&#1086;&#1088;&#1103;&#1095;&#1080;&#1077;
+              &#1082;&#1083;&#1072;&#1074;&#1080;&#1096;&#1080;</button>
           </div>
+        </div>
         <div class="tabs" id="file-tabs"></div>
         <div class="editor-wrap">
           <div id="line-numbers" class="line-numbers" aria-hidden="true"></div>
@@ -139,7 +146,8 @@ print("Привет,", name)</pre>
         </div>
         <pre id="console-output" class="console-output"></pre>
         <div class="console-input-row">
-          <input id="console-input" class="console-input" type="text" placeholder="Введите input и нажмите Enter" disabled />
+          <input id="console-input" class="console-input" type="text" placeholder="Введите input и нажмите Enter"
+            disabled />
           <button id="console-send" class="btn small" disabled>Отправить</button>
         </div>
       </section>
@@ -155,22 +163,16 @@ print("Привет,", name)</pre>
             <button id="turtle-clear" class="btn small">Очистить</button>
           </div>
         </div>
-        <div id="turtle-canvas" class="turtle-host" tabindex="0" aria-label="Черепаха canvas"></div>
+        <div class="turtle-host">
+          <div id="turtle-canvas" tabindex="0" aria-label="Черепаха canvas"></div>
+        </div>
       </section>
     </section>
   </main>
 
-  <script src="vendor/skulpt/skulpt-dist-master/skulpt.min.js"></script>
-  <script>
-    if (window.Sk && !window.Sk.asserts) {
-      window.Sk.asserts = {
-        assert: function () { return true; },
-        fail: function () {}
-      };
-    }
-  </script>
+  <script src="vendor/skulpt/skulpt-dist-master/skulpt.js"></script>
   <script src="vendor/skulpt/skulpt-dist-master/skulpt-stdlib.js"></script>
-  <script src="vendor/skulpt/skulpt-dist-master/debugger.js"></script>
   <script type="module" src="assets/skulpt-app.js"></script>
 </body>
+
 </html>
