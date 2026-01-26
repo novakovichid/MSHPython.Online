@@ -2015,8 +2015,48 @@ function skulptRead(path) {
   const files = state.skulptFiles;
   const assets = state.skulptAssets;
   const normalized = normalizeSkulptPath(path);
+
   if (files && files.has(normalized)) {
-    return files.get(normalized);
+    let content = files.get(normalized);
+    // Absolute-Global Patch: Prepend turtle fix to project files
+    // Using a more compact and re-entrant version
+    if (normalized.endsWith(".py") && !content.includes("_TURTLE_PATCH_ID_")) {
+      content = `
+# _TURTLE_PATCH_ID_
+def _patch_turtle():
+    try:
+        import turtle
+        if getattr(turtle, '_patched', False): return
+        def _u(*a, **k):
+            n = next((x for x in a if isinstance(x, str)), None)
+            if not n: return
+            try:
+                s = turtle.Screen()
+                if hasattr(s, '_shapes') and n not in s._shapes:
+                    try: s._shapes[n] = turtle.Shape("image", n)
+                    except: s._shapes[n] = n
+            except: pass
+        _os = turtle.Turtle.shape
+        def _ps(*a, **k):
+            n = next((x for x in a if isinstance(x, str)), None)
+            if n: _u(n)
+            try: return _os(*a, **k)
+            except: 
+                try: return _os(*a, **k)
+                except: pass
+        if hasattr(turtle, 'Screen'):
+            turtle.Screen.addshape = _u
+            turtle.Screen.register_shape = _u
+        turtle.Turtle.shape = _ps
+        turtle.addshape = _u
+        turtle.register_shape = _u
+        turtle.shape = _ps
+        turtle._patched = True
+    except: pass
+_patch_turtle()
+` + content;
+    }
+    return content;
   }
   if (assets && assets.has(normalized)) {
     return assets.get(normalized);
@@ -2124,12 +2164,26 @@ function getSkulptAssetUrl(name) {
     return null;
   }
   const normalized = normalizeAssetName(name);
-  // Сначала проверяем в загруженных ассетах
+  const lower = normalized.toLowerCase();
+
+  // Case-insensitive lookup in skulptAssetUrls
   let url = state.skulptAssetUrls.get(name) ||
     state.skulptAssetUrls.get(normalized) ||
+    state.skulptAssetUrls.get(lower) ||
     state.skulptAssetUrls.get(`/project/${normalized}`) ||
     state.skulptAssetUrls.get(`./${normalized}`) ||
     null;
+
+  // If not found, try iterating and finding case-insensitive match
+  if (!url) {
+    for (let [k, v] of state.skulptAssetUrls) {
+      if (k.toLowerCase() === lower) {
+        url = v;
+        break;
+      }
+    }
+  }
+
   if (url) {
     return url;
   }
@@ -2346,16 +2400,64 @@ function getTurtleSetupCode(assets) {
     .filter((name) => name && !name.startsWith("/") && isImageAsset(name));
 
   return `
-import turtle
-try:
-    screen = turtle.Screen()
-    for name in ${JSON.stringify(assetNames)}:
-        try:
-            screen.addshape(name)
-        except Exception:
-            pass
-except Exception:
-    pass
+def _apply_turtle_patch():
+    try:
+        import turtle
+        import sys
+        
+        if getattr(turtle, '__patched', False): return
+        
+        # Universal handler for addshape/register_shape
+        def _universal_reg(*args, **kwargs):
+            name = None
+            for a in args:
+                if isinstance(a, str): name = a; break
+            if not name: return
+            try:
+                s = turtle.Screen()
+                if hasattr(s, '_shapes') and name not in s._shapes:
+                    try: s._shapes[name] = turtle.Shape("image", name)
+                    except: s._shapes[name] = name
+            except: pass
+
+        # Wrap Screen() to return a patched object and ensure globals are set
+        _orig_screen_factory = turtle.Screen
+        def _patched_screen_factory(*args, **kwargs):
+            s = _orig_screen_factory(*args, **kwargs)
+            s.addshape = _universal_reg
+            s.register_shape = _universal_reg
+            return s
+        
+        # Wrap Turtle.shape to ensure auto-registration
+        _orig_turtle_shape = turtle.Turtle.shape
+        def _patched_turtle_shape(self_or_name, name=None):
+            target = name if name else (self_or_name if isinstance(self_or_name, str) else None)
+            if target: _universal_reg(target)
+            try:
+                if isinstance(self_or_name, str): return _orig_turtle_shape(self_or_name)
+                return _orig_turtle_shape(self_or_name, name)
+            except:
+                try: # Second attempt after registration
+                    if isinstance(self_or_name, str): return _orig_turtle_shape(self_or_name)
+                    return _orig_turtle_shape(self_or_name, name)
+                except: pass
+
+        # Apply patches
+        turtle.Screen = _patched_screen_factory
+        turtle.addshape = _universal_reg
+        turtle.register_shape = _universal_reg
+        turtle.shape = _patched_turtle_shape
+        turtle.Turtle.shape = _patched_turtle_shape
+        
+        turtle.__patched = True
+        
+        # Auto-register project images
+        for n in ${JSON.stringify(assetNames)}:
+            _universal_reg(n)
+    except:
+        pass
+
+_apply_turtle_patch()
 `;
 }
 
@@ -2463,18 +2565,12 @@ async function runActiveFile() {
     } catch (error) {
       // Ignore cleanup failures and proceed with execution.
     }
+    let finalCode = String(file.content || "");
     if (usesTurtle) {
-      try {
-        const setupCode = getTurtleSetupCode(assets);
-        await Sk.misceval.asyncToPromise(() =>
-          Sk.importMainWithBody("__turtle_setup__", false, setupCode, true)
-        );
-      } catch (error) {
-        // Ignore setup failures
-      }
+      finalCode = getTurtleSetupCode(assets) + "\n" + finalCode;
     }
     await Sk.misceval.asyncToPromise(() =>
-      Sk.importMainWithBody("__main__", false, String(file.content || ""), true)
+      Sk.importMainWithBody("__main__", false, finalCode, true)
     );
     if (state.runToken !== runToken) {
       return;
