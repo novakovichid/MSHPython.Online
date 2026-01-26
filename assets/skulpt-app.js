@@ -2340,20 +2340,24 @@ for name, module in list(sys.modules.items()):
 `;
 
 
-const TURTLE_SETUP_CODE = `
+function getTurtleSetupCode(assets) {
+  const assetNames = (assets || [])
+    .map((a) => String(a.name || ""))
+    .filter((name) => name && !name.startsWith("/") && isImageAsset(name));
+
+  return `
 import turtle
 try:
     screen = turtle.Screen()
-    for name in turtle.assets.keys():
+    for name in ${JSON.stringify(assetNames)}:
         try:
-             # Skip internal paths and non-images
-            if not name.startswith("/"):
-                screen.addshape(name)
+            screen.addshape(name)
         except Exception:
             pass
 except Exception:
     pass
 `;
+}
 
 function getActiveTabName() {
   if (!els.fileTabs) {
@@ -2461,8 +2465,9 @@ async function runActiveFile() {
     }
     if (usesTurtle) {
       try {
+        const setupCode = getTurtleSetupCode(assets);
         await Sk.misceval.asyncToPromise(() =>
-          Sk.importMainWithBody("__turtle_setup__", false, TURTLE_SETUP_CODE, true)
+          Sk.importMainWithBody("__turtle_setup__", false, setupCode, true)
         );
       } catch (error) {
         // Ignore setup failures
