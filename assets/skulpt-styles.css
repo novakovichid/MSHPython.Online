@@ -267,7 +267,7 @@ body {
   gap: 16px;
   padding: 16px 20px 20px;
   overflow: auto;
-  min-height: 520px;
+  min-height: 620px;
 }
 
 .workspace.no-turtle {
@@ -620,7 +620,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  min-height: 400px;
+  min-height: 500px;
 }
 
 .turtle-header {
@@ -649,7 +649,7 @@ body {
 
 #turtle-canvas {
   width: 400px;
-  height: 300px;
+  height: 400px;
   background: #f5f9ff;
   border: 1px solid var(--border);
   border-radius: 4px;

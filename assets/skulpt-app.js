@@ -64,7 +64,7 @@ const RUN_STATUS_LABELS = {
   stopped: "Остановлено"
 };
 const TURTLE_CANVAS_WIDTH = 400;
-const TURTLE_CANVAS_HEIGHT = 300;
+const TURTLE_CANVAS_HEIGHT = 400;
 const TURTLE_SPEED_PRESETS = [
   { key: "slow", label: "Черепаха: Спокойно", multiplier: 1.3 },
   { key: "fast", label: "Черепаха: Быстро", multiplier: 2.2 },
