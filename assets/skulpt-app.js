@@ -1938,72 +1938,7 @@ function initSkulpt() {
   showGuard(false);
 }
 
-function normalizeSkulptPath(path) {
-  if (!path) {
-    return "";
-  }
-  let normalized = String(path).replace(/\\/g, "/");
-  if (normalized.startsWith("./")) {
-    normalized = normalized.slice(2);
-  }
-  if (normalized.startsWith("/project/")) {
-    normalized = normalized.slice(9);
-  }
-  return normalized;
-}
 
-function buildSkulptFileMap(files) {
-  const map = new Map();
-  if (!Array.isArray(files)) {
-    return map;
-  }
-  for (const file of files) {
-    if (file && file.name && typeof file.content === "string") {
-      const normalized = normalizeSkulptPath(file.name);
-      map.set(normalized, file.content);
-      map.set(`/project/${normalized}`, file.content);
-    }
-  }
-  return map;
-}
-
-function buildSkulptAssetMap(assets) {
-  const map = new Map();
-  if (!Array.isArray(assets)) {
-    return map;
-  }
-  for (const asset of assets) {
-    if (asset && asset.name) {
-      const normalized = normalizeSkulptPath(asset.name);
-      map.set(normalized, asset);
-      map.set(`/project/${normalized}`, asset);
-    }
-  }
-  return map;
-}
-
-function setSkulptTurtleAssets(assets) {
-  const turtleAssets = {};
-  if (!Array.isArray(assets)) {
-    return turtleAssets;
-  }
-
-  for (const asset of assets) {
-    if (!asset || !asset.name) {
-      continue;
-    }
-
-    const ext = asset.name.toLowerCase().match(/\.[^.]+$/)?.[0] || "";
-    if (IMAGE_ASSET_EXTENSIONS.has(ext)) {
-      const url = state.skulptAssetUrls.get(asset.blobId);
-      if (url) {
-        turtleAssets[asset.name] = url;
-      }
-    }
-  }
-
-  return turtleAssets;
-}
 
 function getTurtleCanvasSize() {
   if (!els.turtleCanvas) {
@@ -2183,20 +2118,7 @@ function guessImageMime(name) {
   }
 }
 
-function revokeSkulptAssetUrls() {
-  if (!state.skulptAssetUrls || typeof URL === "undefined") {
-    return;
-  }
-  const uniqueUrls = new Set(state.skulptAssetUrls.values());
-  uniqueUrls.forEach((url) => {
-    try {
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      // ignore revoke failures
-    }
-  });
-  state.skulptAssetUrls = new Map();
-}
+
 
 function setSkulptTurtleAssets(assets) {
   revokeSkulptAssetUrls();
