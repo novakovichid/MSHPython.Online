@@ -1,6 +1,10 @@
 # Ignore spec file
 /ТЗ фронтенд only.md
 
+# Development and legacy files
+archive/
+SHAPES_DEBUG.md
+
 node_modules/
 playwright-report/
 test-results/
