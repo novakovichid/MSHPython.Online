@@ -306,6 +306,11 @@ body {
   box-shadow: var(--shadow);
 }
 
+.restart-ide-floating-left {
+  left: 24px;
+  right: auto;
+}
+
 .top-actions .btn {
   padding: 8px 12px;
   font-size: 12px;

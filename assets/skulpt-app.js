@@ -7,7 +7,7 @@ const CONFIG = {
   MAX_TOTAL_TEXT_BYTES: 250000,
   MAX_SINGLE_FILE_BYTES: 50000,
   TAB_SIZE: 4,
-  WORD_WRAP: true
+  WORD_WRAP: false
 };
 const MAIN_FILE = "main.py";
 
@@ -1577,6 +1577,9 @@ function loadSettings() {
       console.warn("Failed to parse settings", error);
     }
   }
+  // Tab size and word wrap are locked to defaults (wrap disabled).
+  state.settings.tabSize = CONFIG.TAB_SIZE;
+  state.settings.wordWrap = CONFIG.WORD_WRAP;
   if (!TURTLE_SPEED_PRESETS.some((preset) => preset.key === state.settings.turtleSpeed)) {
     state.settings.turtleSpeed = "ultra";
   }

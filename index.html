@@ -71,8 +71,6 @@ print("Привет,", name)</pre>
             <div class="brand-sub">Web IDE Python</div>
           </div>
         </a>
-        <button id="restart-ide-btn" class="btn ghost topbar-restart" data-action="restart-ide"
-          title="Перезапустить IDE с очисткой кеша">Перезапуск</button>
       </div>
 
       <div class="topbar-center">
@@ -88,8 +86,8 @@ print("Привет,", name)</pre>
 
       <div class="topbar-right">
         <div class="top-actions">
-          <button id="share-btn" class="btn ghost">Поделиться</button>
-          <button id="export-btn" class="btn ghost">Экспорт</button>
+          <button id="share-btn" class="btn ghost">Поделиться кодом</button>
+          <button id="export-btn" class="btn ghost">Экспорт файлов</button>
           <button id="remix-btn" class="btn ghost">Ремикс</button>
           <button id="reset-btn" class="btn ghost">Сброс</button>
         </div>
@@ -136,13 +134,13 @@ print("Привет,", name)</pre>
       <section class="editor-pane">
         <div class="editor-toolbar">
           <div class="editor-actions">
-            <button id="run-btn" class="btn primary" title="Запуск (F8 или Alt+R)">Запуск</button>
+            <button id="run-btn" class="btn primary" title="Запуск (F8 или Alt+R)">Запуск main.py</button>
             <button id="stop-btn" class="btn danger" disabled title="Остановить (Alt+X)">Стоп</button>
             <div id="run-status" class="run-status">Ожидание</div>
           </div>
           <div class="editor-controls">
-            <button id="tab-size-btn" class="btn chip">Таб: 4</button>
-            <button id="wrap-btn" class="btn chip">Перенос: Вкл</button>
+            <button id="tab-size-btn" class="btn chip hidden">Таб: 4</button>
+            <button id="wrap-btn" class="btn chip hidden">Перенос: Выкл</button>
             <button id="hotkeys-btn" class="btn ghost tiny">&#1043;&#1086;&#1088;&#1103;&#1095;&#1080;&#1077;
               &#1082;&#1083;&#1072;&#1074;&#1080;&#1096;&#1080;</button>
           </div>
@@ -188,6 +186,8 @@ print("Привет,", name)</pre>
         </div>
       </section>
     </section>
+    <button class="btn ghost topbar-restart restart-ide-floating restart-ide-floating-left" data-action="restart-ide"
+      title="Перезапустить IDE с очисткой кеша">Перезапуск IDE</button>
   </main>
 
   <script src="vendor/skulpt/skulpt-dist-master/skulpt.js"></script>
