@@ -132,7 +132,7 @@ const els = {
   projectTitle: document.getElementById("project-title"),
   projectMode: document.getElementById("project-mode"),
   saveIndicator: document.getElementById("save-indicator"),
-  restartIdeBtn: document.getElementById("restart-ide-btn"),
+  restartIdeButtons: document.querySelectorAll("[data-action=\"restart-ide\"]"),
   runBtn: document.getElementById("run-btn"),
   stopBtn: document.getElementById("stop-btn"),
   clearBtn: document.getElementById("clear-btn"),
@@ -279,8 +279,10 @@ function bindUi() {
   if (els.renameBtn) {
     els.renameBtn.addEventListener("click", renameProject);
   }
-  if (els.restartIdeBtn) {
-    els.restartIdeBtn.addEventListener("click", restartIdeWithCacheClear);
+  if (els.restartIdeButtons && els.restartIdeButtons.length) {
+    els.restartIdeButtons.forEach((button) => {
+      button.addEventListener("click", restartIdeWithCacheClear);
+    });
   }
 
   els.runBtn.addEventListener("click", runActiveFile);
@@ -2203,6 +2205,18 @@ function enableConsoleInput(enable) {
   els.consoleSend.disabled = !enable;
 }
 
+function setConsoleInputWaiting(waiting) {
+  state.stdinWaiting = waiting;
+  if (!els.consoleInput) {
+    return;
+  }
+  els.consoleInput.classList.toggle("awaiting-input", waiting);
+  if (waiting) {
+    els.consoleInput.focus();
+    els.consoleInput.select();
+  }
+}
+
 function submitConsoleInput() {
   const value = els.consoleInput.value;
   els.consoleInput.value = "";
@@ -2219,7 +2233,7 @@ function submitConsoleInput() {
   if (state.stdinResolver) {
     const resolver = state.stdinResolver;
     state.stdinResolver = null;
-    state.stdinWaiting = false;
+    setConsoleInputWaiting(false);
     resolver(lines[0] || "");
     // Add remaining lines to queue
     for (let i = 1; i < lines.length; i++) {
@@ -2240,7 +2254,7 @@ function deliverInput() {
   const value = state.stdinQueue.shift();
   const resolver = state.stdinResolver;
   state.stdinResolver = null;
-  state.stdinWaiting = false;
+  setConsoleInputWaiting(false);
   resolver(value);
 }
 
@@ -2251,7 +2265,7 @@ function skulptInput(prompt) {
   if (state.stdinQueue.length) {
     return state.stdinQueue.shift();
   }
-  state.stdinWaiting = true;
+  setConsoleInputWaiting(true);
   enableConsoleInput(true);
   return new Promise((resolve) => {
     state.stdinResolver = resolve;
@@ -2935,7 +2949,7 @@ async function runActiveFile() {
   updateRunStatus("running");
 
   state.stdinQueue = [];
-  state.stdinWaiting = false;
+  setConsoleInputWaiting(false);
   state.stdinResolver = null;
 
   const assets = state.mode === "project" ? await loadAssets() : [];
@@ -2997,7 +3011,7 @@ async function runActiveFile() {
       enableConsoleInput(false);
       els.stopBtn.disabled = true;
       state.stdinResolver = null;
-      state.stdinWaiting = false;
+      setConsoleInputWaiting(false);
       state.stdinQueue = [];
     }
     if (state.runTimeout) {
@@ -3057,7 +3071,7 @@ function hardStop(status = "stopped") {
     Sk.execStart = Date.now() - CONFIG.RUN_TIMEOUT_MS - 1;
   }
   state.stdinQueue = [];
-  state.stdinWaiting = false;
+  setConsoleInputWaiting(false);
   state.stdinResolver = null;
   updateRunStatus(status);
   enableConsoleInput(false);

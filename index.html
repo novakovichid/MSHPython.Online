@@ -1,4 +1,4 @@
-﻿<!doctype html>
+?<!doctype html>
 <html lang="ru">
 
 <head>
@@ -6,9 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'self'; connect-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'" />
-  <title>РњРЁРџР°Р№С‚РѕРЅ.РћРЅР»Р°Р№РЅ - Web IDE Python</title>
+  <title>МШПайтон.Онлайн - Web IDE Python</title>
   <link rel="icon"
-    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3EрџђЌ%3C/text%3E%3C/svg%3E" />
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E🐍%3C/text%3E%3C/svg%3E" />
   <link rel="stylesheet" href="assets/skulpt-styles.css" />
 </head>
 
@@ -32,28 +32,31 @@
         <div class="pill"><img src="assets/shp-logo.webp" alt="" /><span
             class="pill-name">&#1052;&#1064;&#1055;&#1072;&#1081;&#1090;&#1086;&#1085;.&#1054;&#1085;&#1083;&#1072;&#1081;&#1085;</span>
         </div>
-        <h1>РЎРѕР·РґР°РІР°Р№С‚Рµ, Р·Р°РїСѓСЃРєР°Р№С‚Рµ Рё РґРµР»РёС‚РµСЃСЊ PythonвЂ‘РїСЂРѕРµРєС‚Р°РјРё РІ Р±СЂР°СѓР·РµСЂРµ.</h1>
-        <p>РњРЅРѕРіРѕС„Р°Р№Р»РѕРІС‹Рµ РїСЂРѕРµРєС‚С‹, РІРІРѕРґ РІ РєРѕРЅСЃРѕР»Рё, turtle canvas Рё РЅРµРёР·РјРµРЅСЏРµРјС‹Рµ СЃСЃС‹Р»РєРё. Р‘РµР· СЃРµСЂРІРµСЂР°. Р‘РµР· Р°РєРєР°СѓРЅС‚РѕРІ.</p>
+        <h1>Создавайте, запускайте и делитесь Python‑проектами в браузере.</h1>
+        <p>Многофайловые проекты, ввод в консоли, turtle canvas и неизменяемые ссылки. Без сервера. Без аккаунтов.</p>
         <div class="hero-actions">
-          <button id="new-project" class="btn primary">РќРѕРІС‹Р№ РїСЂРѕРµРєС‚</button>
+          <button id="new-project" class="btn primary">Новый проект</button>
         </div>
       </div>
       <div class="hero-card">
-        <div class="hero-card-header">Р‘С‹СЃС‚СЂС‹Р№ СЃС‚Р°СЂС‚</div>
+        <div class="hero-card-header">Быстрый старт</div>
         <pre class="hero-code">print("Hello, world!")
 
-name = input("РљР°Рє РІР°СЃ Р·РѕРІСѓС‚? ")
-print("РџСЂРёРІРµС‚,", name)</pre>
+name = input("Как вас зовут? ")
+print("Привет,", name)</pre>
       </div>
     </section>
 
     <section class="recent">
       <div class="section-title">
-        <h2>РќРµРґР°РІРЅРёРµ РїСЂРѕРµРєС‚С‹</h2>
-        <button id="clear-recent" class="btn ghost">РћС‡РёСЃС‚РёС‚СЊ СЃРїРёСЃРѕРє</button>
+        <h2>Недавние проекты</h2>
+        <button id="clear-recent" class="btn ghost">Очистить список</button>
       </div>
+      <p class="recent-note">Свои посылки с кодом ты можешь найти в посылках к задачам в Информатикс!</p>
       <div id="recent-list" class="recent-list"></div>
     </section>
+    <button class="btn ghost topbar-restart restart-ide-floating" data-action="restart-ide"
+      title="????????????? IDE ? ???????? ????">?????????? IDE</button>
   </main>
 
   <main id="view-ide" class="view ide hidden">
@@ -68,14 +71,14 @@ print("РџСЂРёРІРµС‚,", name)</pre>
             <div class="brand-sub">Web IDE Python</div>
           </div>
         </a>
-        <button id="restart-ide-btn" class="btn ghost topbar-restart" title="Перезапустить IDE с очисткой кеша">Перезапуск</button>
+        <button id="restart-ide-btn" class="btn ghost topbar-restart" data-action="restart-ide" title="Перезапустить IDE с очисткой кеша">Перезапуск</button>
       </div>
 
       <div class="topbar-center">
         <div class="project-meta">
           <div class="project-title-row">
             <div id="project-title" class="project-title">Без названия</div>
-            <button id="rename-btn" class="btn-icon" title="Переименовать проект">✏️</button>
+            <button id="rename-btn" class="btn-icon" title="Переименовать проект">&#9998;</button>
           </div>
           <div id="project-mode" class="project-mode">Проект</div>
         </div>
@@ -92,36 +95,36 @@ print("РџСЂРёРІРµС‚,", name)</pre>
       </div>
     </header>
 
-    <div id="snapshot-banner" class="snapshot-banner hidden">РћР±С‰РёР№ СЃРЅРёРјРѕРє. Р’Р°С€Рё РїСЂР°РІРєРё Р»РѕРєР°Р»СЊРЅС‹ РґРѕ В«Р РµРјРёРєСЃР°В».</div>
+    <div id="snapshot-banner" class="snapshot-banner hidden">Общий снимок. Ваши правки локальны до «Ремикса».</div>
 
     <section class="workspace no-turtle">
       <aside id="sidebar" class="sidebar">
         <div class="panel">
           <div class="panel-header">
-            <div class="panel-title">РњРѕРґСѓР»Рё</div>
+            <div class="panel-title">Модули</div>
             <div class="panel-actions panel-actions-files">
               <button id="file-create" class="btn small">+</button>
-              <button id="file-rename" class="btn small">РџРµСЂРµРёРјРµРЅРѕРІР°С‚СЊ</button>
-              <button id="file-duplicate" class="btn small">Р”СѓР±Р»РёСЂРѕРІР°С‚СЊ</button>
-              <button id="file-delete" class="btn small danger">РЈРґР°Р»РёС‚СЊ</button>
+              <button id="file-rename" class="btn small">Переименовать</button>
+              <button id="file-duplicate" class="btn small">Дублировать</button>
+              <button id="file-delete" class="btn small danger">Удалить</button>
             </div>
           </div>
           <div id="file-list" class="file-list"></div>
         </div>
 
         <!-- 
-          РџР°РЅРµР»СЊ "Р РµСЃСѓСЂСЃС‹" РІСЂРµРјРµРЅРЅРѕ СЃРєСЂС‹С‚Р°.
-          РџСЂРёС‡РёРЅР°: Skulpt РЅРµ РїРѕРґРґРµСЂР¶РёРІР°РµС‚ Р·Р°РіСЂСѓР·РєСѓ РёР·РѕР±СЂР°Р¶РµРЅРёР№ РєР°Рє С„РѕСЂРј С‡РµСЂРµРїР°С…Рё.
-          Р­С‚Рѕ Р°СЂС…РёС‚РµРєС‚СѓСЂРЅРѕРµ РѕРіСЂР°РЅРёС‡РµРЅРёРµ Skulpt (РІ РѕС‚Р»РёС‡РёРµ РѕС‚ trinket.io, РєРѕС‚РѕСЂР°СЏ РёСЃРїРѕР»СЊР·СѓРµС‚ 
-          СЃРѕР±СЃС‚РІРµРЅРЅС‹Р№ turtle.js РјРѕРґСѓР»СЊ). Р”Р»СЏ РїРѕР»РЅРѕС†РµРЅРЅРѕР№ СЂР°Р±РѕС‚С‹ РЅСѓР¶РЅР° РїРµСЂРµРїРёСЃР°РЅРЅР°СЏ СЂРµР°Р»РёР·Р°С†РёСЏ 
-          turtle graphics РёР»Рё РѕР±РЅРѕРІР»РµРЅРёРµ Skulpt РґРѕ РІРµСЂСЃРёРё СЃ РїРѕРґРґРµСЂР¶РєРѕР№ image shapes.
-          Р¤СѓРЅРєС†РёРѕРЅР°Р» Р·Р°РєРѕРЅСЃРµСЂРІРёСЂРѕРІР°РЅ, РЅРѕ РєРѕРґ РґР»СЏ Р·Р°РіСЂСѓР·РєРё Р°СЃСЃРµС‚РѕРІ РѕСЃС‚Р°С‘С‚СЃСЏ РІ JavaScript РєРѕРґРµ.
+          Панель "Ресурсы" временно скрыта.
+          Причина: Skulpt не поддерживает загрузку изображений как форм черепахи.
+          Это архитектурное ограничение Skulpt (в отличие от trinket.io, которая использует 
+          собственный turtle.js модуль). Для полноценной работы нужна переписанная реализация 
+          turtle graphics или обновление Skulpt до версии с поддержкой image shapes.
+          Функционал законсервирован, но код для загрузки ассетов остаётся в JavaScript коде.
         -->
         <!-- div class="panel" hidden>
           <div class="panel-header">
-            <div class="panel-title">Р РµСЃСѓСЂСЃС‹</div>
+            <div class="panel-title">Ресурсы</div>
             <div class="panel-actions">
-              <label class="btn small" for="asset-input">Р—Р°РіСЂСѓР·РёС‚СЊ</label>
+              <label class="btn small" for="asset-input">Загрузить</label>
               <input id="asset-input" type="file" multiple class="hidden" />
             </div>
           </div>
@@ -132,13 +135,13 @@ print("РџСЂРёРІРµС‚,", name)</pre>
       <section class="editor-pane">
         <div class="editor-toolbar">
           <div class="editor-actions">
-            <button id="run-btn" class="btn primary" title="Р—Р°РїСѓСЃРє (F8 РёР»Рё Alt+R)">Р—Р°РїСѓСЃРє</button>
-            <button id="stop-btn" class="btn danger" disabled title="РћСЃС‚Р°РЅРѕРІРёС‚СЊ (Alt+X)">РЎС‚РѕРї</button>
-            <div id="run-status" class="run-status">РћР¶РёРґР°РЅРёРµ</div>
+            <button id="run-btn" class="btn primary" title="Запуск (F8 или Alt+R)">Запуск</button>
+            <button id="stop-btn" class="btn danger" disabled title="Остановить (Alt+X)">Стоп</button>
+            <div id="run-status" class="run-status">Ожидание</div>
           </div>
           <div class="editor-controls">
-            <button id="tab-size-btn" class="btn chip">РўР°Р±: 4</button>
-            <button id="wrap-btn" class="btn chip">РџРµСЂРµРЅРѕСЃ: Р’РєР»</button>
+            <button id="tab-size-btn" class="btn chip">Таб: 4</button>
+            <button id="wrap-btn" class="btn chip">Перенос: Вкл</button>
             <button id="hotkeys-btn" class="btn ghost tiny">&#1043;&#1086;&#1088;&#1103;&#1095;&#1080;&#1077;
               &#1082;&#1083;&#1072;&#1074;&#1080;&#1096;&#1080;</button>
           </div>
@@ -155,32 +158,32 @@ print("РџСЂРёРІРµС‚,", name)</pre>
 
       <section class="console-pane">
         <div class="panel-header">
-          <div class="panel-title">РљРѕРЅСЃРѕР»СЊ</div>
+          <div class="panel-title">Консоль</div>
           <div class="panel-actions">
-            <button id="clear-btn" class="btn small ghost" title="РћС‡РёСЃС‚РёС‚СЊ РєРѕРЅСЃРѕР»СЊ (Alt+C)">РћС‡РёСЃС‚РёС‚СЊ РєРѕРЅСЃРѕР»СЊ</button>
+            <button id="clear-btn" class="btn small ghost" title="Очистить консоль (Alt+C)">Очистить консоль</button>
           </div>
         </div>
         <pre id="console-output" class="console-output"></pre>
         <div class="console-input-row">
-          <textarea id="console-input" class="console-input" placeholder="Р’РІРµРґРёС‚Рµ input Рё РЅР°Р¶РјРёС‚Рµ Enter (Shift+Enter РґР»СЏ РЅРѕРІРѕР№ СЃС‚СЂРѕРєРё)"
+          <textarea id="console-input" class="console-input" placeholder="Введите input и нажмите Enter (Shift+Enter для новой строки)"
             disabled></textarea>
-          <button id="console-send" class="btn small" disabled>РћС‚РїСЂР°РІРёС‚СЊ</button>
+          <button id="console-send" class="btn small" disabled>Отправить</button>
         </div>
       </section>
 
       <section class="turtle-pane hidden">
         <div class="panel-header turtle-header">
-          <div class="panel-title">Р§РµСЂРµРїР°С…Р°</div>
+          <div class="panel-title">Черепаха</div>
           <div class="turtle-controls">
             <label class="turtle-speed hidden" for="turtle-speed">
-              <span id="turtle-speed-label">Р§РµСЂРµРїР°С…Р°: РЎСѓРїРµСЂ</span>
+              <span id="turtle-speed-label">Черепаха: Супер</span>
               <input id="turtle-speed" type="range" min="0" max="2" step="1" value="2" />
             </label>
-            <button id="turtle-clear" class="btn small">РћС‡РёСЃС‚РёС‚СЊ</button>
+            <button id="turtle-clear" class="btn small">Очистить</button>
           </div>
         </div>
         <div class="turtle-host">
-          <div id="turtle-canvas" tabindex="0" aria-label="Р§РµСЂРµРїР°С…Р° canvas"></div>
+          <div id="turtle-canvas" tabindex="0" aria-label="Черепаха canvas"></div>
         </div>
       </section>
     </section>
