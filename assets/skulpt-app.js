@@ -792,18 +792,125 @@ function onEditorInput() {
 }
 
 function onEditorKeydown(event) {
-  if (event.key !== "Tab") {
-    return;
-  }
-  event.preventDefault();
   const tabSize = state.settings.tabSize;
   const spaces = " ".repeat(tabSize);
   const start = els.editor.selectionStart;
   const end = els.editor.selectionEnd;
   const value = els.editor.value;
-  els.editor.value = value.slice(0, start) + spaces + value.slice(end);
-  els.editor.selectionStart = els.editor.selectionEnd = start + spaces.length;
-  onEditorInput();
+  
+  // Tab indentation
+  if (event.key === "Tab") {
+    event.preventDefault();
+    els.editor.value = value.slice(0, start) + spaces + value.slice(end);
+    els.editor.selectionStart = els.editor.selectionEnd = start + spaces.length;
+    onEditorInput();
+    return;
+  }
+
+  // Get current line info
+  const beforeSelection = value.slice(0, start);
+  const lineStart = beforeSelection.lastIndexOf("\n") + 1;
+  const currentLine = value.split("\n")[beforeSelection.split("\n").length - 1];
+  const fullLineStart = start - currentLine.length;
+  const fullLineEnd = fullLineStart + currentLine.length;
+
+  // Alt+/ - Comment/uncomment current line
+  if (event.altKey && event.key === "/") {
+    event.preventDefault();
+    const currentLineNum = value.slice(0, start).split("\n").length - 1;
+    const lines = value.split("\n");
+    const line = lines[currentLineNum];
+    const trimmed = line.trim();
+    
+    if (trimmed.startsWith("#")) {
+      // Uncomment
+      lines[currentLineNum] = line.replace(/^(\s*)#\s?/, "$1");
+    } else if (trimmed) {
+      // Comment
+      lines[currentLineNum] = line.replace(/^(\s*)/, "$1# ");
+    }
+    
+    els.editor.value = lines.join("\n");
+    onEditorInput();
+    return;
+  }
+
+  // Alt+Up - Move line up
+  if (event.altKey && event.key === "ArrowUp") {
+    event.preventDefault();
+    const currentLineNum = value.slice(0, start).split("\n").length - 1;
+    if (currentLineNum === 0) return;
+    
+    const lines = value.split("\n");
+    [lines[currentLineNum - 1], lines[currentLineNum]] = [lines[currentLineNum], lines[currentLineNum - 1]];
+    els.editor.value = lines.join("\n");
+    
+    // Keep cursor at same position relative to text
+    const newStart = start - currentLine.length - 1 - lines[currentLineNum - 1].length - 1;
+    els.editor.selectionStart = els.editor.selectionEnd = newStart;
+    onEditorInput();
+    return;
+  }
+
+  // Alt+Down - Move line down
+  if (event.altKey && event.key === "ArrowDown") {
+    event.preventDefault();
+    const lines = value.split("\n");
+    const currentLineNum = value.slice(0, start).split("\n").length - 1;
+    if (currentLineNum === lines.length - 1) return;
+    
+    [lines[currentLineNum], lines[currentLineNum + 1]] = [lines[currentLineNum + 1], lines[currentLineNum]];
+    els.editor.value = lines.join("\n");
+    
+    // Keep cursor at same position relative to text
+    const newStart = start + lines[currentLineNum + 1].length + 1;
+    els.editor.selectionStart = els.editor.selectionEnd = newStart;
+    onEditorInput();
+    return;
+  }
+
+  // Ctrl+D - Duplicate line
+  if (event.ctrlKey && event.key === "d") {
+    event.preventDefault();
+    const lines = value.split("\n");
+    const currentLineNum = value.slice(0, start).split("\n").length - 1;
+    lines.splice(currentLineNum + 1, 0, lines[currentLineNum]);
+    els.editor.value = lines.join("\n");
+    onEditorInput();
+    return;
+  }
+
+  // Ctrl+Shift+K - Delete line
+  if (event.ctrlKey && event.shiftKey && event.key === "K") {
+    event.preventDefault();
+    const lines = value.split("\n");
+    const currentLineNum = value.slice(0, start).split("\n").length - 1;
+    lines.splice(currentLineNum, 1);
+    els.editor.value = lines.join("\n");
+    
+    // Move cursor to deleted line position or end
+    const newPos = Math.min(start, els.editor.value.length);
+    els.editor.selectionStart = els.editor.selectionEnd = newPos;
+    onEditorInput();
+    return;
+  }
+
+  // Ctrl+L - Select line
+  if (event.ctrlKey && event.key === "l") {
+    event.preventDefault();
+    const currentLineNum = value.slice(0, start).split("\n").length - 1;
+    const lines = value.split("\n");
+    
+    let lineStart = 0;
+    for (let i = 0; i < currentLineNum; i++) {
+      lineStart += lines[i].length + 1; // +1 for newline
+    }
+    const lineEnd = lineStart + lines[currentLineNum].length;
+    
+    els.editor.selectionStart = lineStart;
+    els.editor.selectionEnd = lineEnd;
+    return;
+  }
 }
 
 function syncEditorScroll() {
@@ -2979,6 +3086,14 @@ function showHotkeysModal() {
         <li><strong>Alt+1</strong> — Фокус на редактор кода</li>
         <li><strong>Alt+2</strong> — Фокус на консоль (для input)</li>
         <li><strong>Alt+3</strong> — Фокус на черепаху</li>
+        <li style="margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px;"><strong>Редактор кода:</strong></li>
+        <li><strong>Tab</strong> — Отступ</li>
+        <li><strong>Alt+/</strong> — Комментировать строку</li>
+        <li><strong>Alt+↑</strong> — Переместить строку вверх</li>
+        <li><strong>Alt+↓</strong> — Переместить строку вниз</li>
+        <li><strong>Ctrl+D</strong> — Дублировать строку</li>
+        <li><strong>Ctrl+Shift+K</strong> — Удалить строку</li>
+        <li><strong>Ctrl+L</strong> — Выделить строку</li>
       </ul>
       <div class="modal-actions">
         <button class="btn primary" data-action="close">\u041e\u043a</button>
