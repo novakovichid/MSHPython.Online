@@ -544,6 +544,10 @@ body {
   padding: 10px 12px;
   font-family: "JetBrains Mono", monospace;
   font-size: 13px;
+  resize: none;
+  max-height: 120px;
+  overflow-y: auto;
+  line-height: 1.4;
 }
 
 .turtle-pane {

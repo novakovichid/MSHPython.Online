@@ -310,7 +310,7 @@ function bindUi() {
 
   els.consoleSend.addEventListener("click", submitConsoleInput);
   els.consoleInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
+    if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       submitConsoleInput();
     }
