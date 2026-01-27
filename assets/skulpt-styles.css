@@ -819,6 +819,16 @@ body {
   margin-top: 0;
 }
 
+.guard-spinner {
+  width: 36px;
+  height: 36px;
+  margin: 16px auto 0;
+  border-radius: 50%;
+  border: 3px solid rgba(28, 107, 255, 0.2);
+  border-top-color: var(--accent);
+  animation: guardSpin 0.9s linear infinite;
+}
+
 .guard-actions {
   display: flex;
   justify-content: center;
@@ -1025,6 +1035,16 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes guardSpin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
   }
 }
 
