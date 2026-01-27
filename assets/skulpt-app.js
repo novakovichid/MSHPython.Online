@@ -409,7 +409,7 @@ async function router() {
     if (payload && shareId) {
       await openSnapshot(shareId, payload);
     } else {
-      openEphemeralProject();
+      await openEphemeralProject();
     }
   } else {
     /**
@@ -482,7 +482,8 @@ function applyEmbedSettings(query) {
 async function openProject(projectId) {
   let project = projectId ? await dbGet("projects", projectId) : null;
   if (!project) {
-    project = createDefaultProject(projectId);
+    const defaultTitle = await getDefaultProjectTitle();
+    project = createDefaultProject(projectId, defaultTitle);
     await saveProject(project);
   }
   state.project = project;
@@ -501,23 +502,57 @@ async function openProject(projectId) {
   await rememberRecent(project.projectId);
 }
 
+function formatDefaultProjectTitle(index) {
+  const safeIndex = Number.isFinite(index) && index > 0 ? Math.floor(index) : 1;
+  return `Мой МШПроект - ${safeIndex}`;
+}
+
+async function getProjectsCount() {
+  if (!state.db) {
+    const store = getMemoryStore("projects");
+    return store ? store.size : 0;
+  }
+  try {
+    return await new Promise((resolve) => {
+      const tx = state.db.transaction("projects", "readonly");
+      const store = tx.objectStore("projects");
+      const request = store.count();
+      request.onsuccess = () => resolve(Number(request.result || 0));
+      request.onerror = () => resolve(0);
+    });
+  } catch (error) {
+    console.warn("IndexedDB count failed", error);
+    state.db = null;
+    const store = getMemoryStore("projects");
+    return store ? store.size : 0;
+  }
+}
+
+async function getDefaultProjectTitle() {
+  const count = await getProjectsCount();
+  return formatDefaultProjectTitle(count + 1);
+}
+
 async function createProjectAndOpen() {
+  const defaultTitle = await getDefaultProjectTitle();
   const name = await promptModal({
     title: "Название проекта",
-    placeholder: "Мой проект",
-    confirmText: "Создать"
+    placeholder: defaultTitle,
+    confirmText: "Создать",
+    fallbackValue: defaultTitle
   });
   if (name === null) {
     return;
   }
   const trimmed = name.trim();
-  const project = createDefaultProject(undefined, trimmed || "Без названия");
+  const project = createDefaultProject(undefined, trimmed || defaultTitle);
   await saveProject(project);
   location.hash = `#/p/${project.projectId}`;
 }
 
-function openEphemeralProject() {
-  const project = createDefaultProject();
+async function openEphemeralProject() {
+  const defaultTitle = await getDefaultProjectTitle();
+  const project = createDefaultProject(undefined, defaultTitle);
   /**
    * Creates a default project structure with main.py.
    * @param {string} projectId - Unique project identifier
@@ -537,7 +572,7 @@ function createDefaultProject(projectId, title) {
   const id = projectId || createUuid();
   return {
     projectId: id,
-    title: title || "Без названия",
+    title: title || formatDefaultProjectTitle(1),
     files: [
       {
         name: MAIN_FILE,
