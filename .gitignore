@@ -14,3 +14,5 @@ tests/
 playwright.config.cjs
 package.json
 package-lock.json
+teacher_guide.md
+student_guide.md
