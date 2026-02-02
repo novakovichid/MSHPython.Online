@@ -1,4 +1,5 @@
 import { gzipSync, gunzipSync } from "./skulpt-fflate.esm.js";
+import { mergeUniqueIds } from "./utils/recent-utils.mjs";
 
 const CONFIG = {
   RUN_TIMEOUT_MS: 60000,
@@ -128,6 +129,7 @@ const els = {
   snapshotBanner: document.getElementById("snapshot-banner"),
   newProject: document.getElementById("new-project"),
   clearRecent: document.getElementById("clear-recent"),
+  trashRecent: document.getElementById("trash-recent"),
   recentList: document.getElementById("recent-list"),
   projectTitle: document.getElementById("project-title"),
   projectMode: document.getElementById("project-mode"),
@@ -197,7 +199,8 @@ const memoryDb = {
   projects: new Map(),
   blobs: new Map(),
   drafts: new Map(),
-  recent: new Map()
+  recent: new Map(),
+  trash: new Map()
 };
 
 /**
@@ -220,6 +223,9 @@ function getStoreKey(storeName, value) {
     return value.key;
   }
   if (storeName === "recent") {
+    return value.key;
+  }
+  if (storeName === "trash") {
     return value.key;
   }
   return null;
@@ -277,6 +283,9 @@ function bindUi() {
   }
   els.newProject.addEventListener("click", () => createProjectAndOpen());
   els.clearRecent.addEventListener("click", clearRecentProjects);
+  if (els.trashRecent) {
+    els.trashRecent.addEventListener("click", openTrashModal);
+  }
   if (els.renameBtn) {
     els.renameBtn.addEventListener("click", renameProject);
   }
@@ -532,8 +541,13 @@ async function getProjectsCount() {
   }
 }
 
+async function getRecentCount() {
+  const list = await getRecent();
+  return list.length;
+}
+
 async function getDefaultProjectTitle() {
-  const count = await getProjectsCount();
+  const count = await getRecentCount();
   return formatDefaultProjectTitle(count + 1);
 }
 
@@ -855,6 +869,25 @@ function onEditorKeydown(event) {
     els.editor.selectionStart = els.editor.selectionEnd = start + spaces.length;
     onEditorInput();
     return;
+  }
+
+  if (event.key === "Enter") {
+    const before = value.slice(0, start);
+    const lineStart = before.lastIndexOf("\n") + 1;
+    const line = value.slice(lineStart, start);
+    const indentMatch = line.match(/^[ \t]*/);
+    const baseIndent = indentMatch ? indentMatch[0] : "";
+    const trimmed = line.trimEnd();
+    const shouldIndent = trimmed.endsWith(":") || baseIndent.length > 0;
+    if (shouldIndent) {
+      event.preventDefault();
+      const extraIndent = trimmed.endsWith(":") ? spaces : "";
+      const insert = `\n${baseIndent}${extraIndent}`;
+      els.editor.value = value.slice(0, start) + insert + value.slice(end);
+      els.editor.selectionStart = els.editor.selectionEnd = start + insert.length;
+      onEditorInput();
+      return;
+    }
   }
 
   // Get current line info
@@ -1656,17 +1689,55 @@ async function renderRecent() {
     const meta = document.createElement("small");
     meta.textContent = `Обновлено ${new Date(project.updatedAt).toLocaleString()}`;
     const open = document.createElement("button");
-    open.className = "btn small";
+    open.className = "btn small recent-open";
     open.textContent = "Открыть";
     open.addEventListener("click", () => {
       location.hash = `#/p/${project.projectId}`;
     });
-    card.append(title, meta, open);
+    const remove = document.createElement("button");
+    remove.className = "btn small square danger";
+    remove.textContent = "🗑";
+    remove.title = "Удалить";
+    remove.addEventListener("click", async () => {
+      const ok = await confirmModal({
+        title: "Удалить проект?",
+        message: "Проект будет перемещен в корзину.",
+        confirmText: "Удалить"
+      });
+      if (!ok) {
+        return;
+      }
+      const trash = await getTrash();
+      const merged = mergeUniqueIds([project.projectId], trash);
+      await dbPut("trash", { key: "trash", list: merged });
+      const nextRecent = recent.filter((item) => item !== project.projectId);
+      await dbPut("recent", { key: "recent", list: nextRecent });
+      await renderRecent();
+    });
+    const actions = document.createElement("div");
+    actions.className = "recent-actions-row";
+    actions.append(open, remove);
+    card.append(title, meta, actions);
     els.recentList.appendChild(card);
   }
 }
 
 async function clearRecentProjects() {
+  const recent = await getRecent();
+  if (!recent.length) {
+    return;
+  }
+  const ok = await confirmModal({
+    title: "Очистить список?",
+    message: "Проекты будут перемещены в корзину.",
+    confirmText: "Очистить"
+  });
+  if (!ok) {
+    return;
+  }
+  const trash = await getTrash();
+  const merged = mergeUniqueIds(recent, trash);
+  await dbPut("trash", { key: "trash", list: merged });
   await dbPut("recent", { key: "recent", list: [] });
   await renderRecent();
 }
@@ -1674,6 +1745,147 @@ async function clearRecentProjects() {
 async function getRecent() {
   const record = await dbGet("recent", "recent");
   return record?.list || [];
+}
+
+async function getTrash() {
+  const record = await dbGet("trash", "trash");
+  return record?.list || [];
+}
+
+async function setTrash(list) {
+  await dbPut("trash", { key: "trash", list });
+}
+
+async function restoreFromTrash(projectId) {
+  const project = await dbGet("projects", projectId);
+  const recent = await getRecent();
+  if (project) {
+    const nextRecent = [projectId, ...recent.filter((id) => id !== projectId)].slice(0, 12);
+    await dbPut("recent", { key: "recent", list: nextRecent });
+  }
+  const trash = await getTrash();
+  await setTrash(trash.filter((id) => id !== projectId));
+  await renderRecent();
+}
+
+async function deleteFromTrash(projectId) {
+  await dbDelete("projects", projectId);
+  const trash = await getTrash();
+  await setTrash(trash.filter((id) => id !== projectId));
+  const recent = await getRecent();
+  if (recent.includes(projectId)) {
+    await dbPut("recent", { key: "recent", list: recent.filter((id) => id !== projectId) });
+    await renderRecent();
+  }
+}
+
+async function emptyTrash() {
+  const trash = await getTrash();
+  if (!trash.length) {
+    return;
+  }
+  for (const id of trash) {
+    await dbDelete("projects", id);
+  }
+  await setTrash([]);
+  const recent = await getRecent();
+  if (recent.length) {
+    const nextRecent = recent.filter((id) => !trash.includes(id));
+    await dbPut("recent", { key: "recent", list: nextRecent });
+  }
+  await renderRecent();
+}
+
+async function openTrashModal() {
+  const trash = await getTrash();
+  if (!trash.length) {
+    const html = `
+      <div class="modal-card">
+        <h3>Корзина</h3>
+        <p>Корзина пуста.</p>
+        <div class="modal-actions">
+          <button class="btn ghost" data-action="close">Закрыть</button>
+        </div>
+      </div>
+    `;
+    openModal(html, (action) => {
+      if (action === "close") {
+        closeModal();
+      }
+    });
+    return;
+  }
+
+  const items = [];
+  for (const id of trash) {
+    const project = await dbGet("projects", id);
+    const title = project?.title || "Без названия";
+    const updated = project?.updatedAt
+      ? `Обновлено ${new Date(project.updatedAt).toLocaleString()}`
+      : "Проект не найден";
+    items.push(`
+      <div class="trash-item">
+        <div class="trash-meta">
+          <div class="trash-title">${escapeHtml(title)}</div>
+          <div class="trash-sub">${escapeHtml(updated)}</div>
+        </div>
+        <div class="trash-actions">
+          <button class="btn small" data-action="restore:${id}">Восстановить</button>
+          <button class="btn small danger" data-action="delete:${id}">Удалить</button>
+        </div>
+      </div>
+    `);
+  }
+
+  const html = `
+    <div class="modal-card">
+      <h3>Корзина</h3>
+      <div class="trash-list">${items.join("")}</div>
+      <div class="modal-actions">
+        <button class="btn ghost" data-action="close">Закрыть</button>
+        <button class="btn danger" data-action="empty">Очистить корзину</button>
+      </div>
+    </div>
+  `;
+
+  openModal(html, async (action) => {
+    if (action === "close") {
+      closeModal();
+      return;
+    }
+    if (action === "empty") {
+      const ok = await confirmModal({
+        title: "Очистить корзину?",
+        message: "Проекты будут удалены навсегда.",
+        confirmText: "Удалить"
+      });
+      if (ok) {
+        await emptyTrash();
+        closeModal();
+      }
+      return;
+    }
+    if (action && action.startsWith("restore:")) {
+      const projectId = action.slice("restore:".length);
+      await restoreFromTrash(projectId);
+      closeModal();
+      openTrashModal();
+      return;
+    }
+    if (action && action.startsWith("delete:")) {
+      const projectId = action.slice("delete:".length);
+      const ok = await confirmModal({
+        title: "Удалить проект?",
+        message: "Проект будет удален навсегда.",
+        confirmText: "Удалить"
+      });
+      if (ok) {
+        await deleteFromTrash(projectId);
+        closeModal();
+        openTrashModal();
+      }
+    }
+  });
 }
 
 async function shareProject() {
@@ -3291,7 +3503,7 @@ async function promptModal({ title, placeholder, value, confirmText, fallbackVal
         <h3>${safeTitle}</h3>
         <input class="modal-input" value="${safeValue}" placeholder="${safePlaceholder}" />
         <div class="modal-actions">
-          <button class="btn ghost" data-action="cancel">Cancel</button>
+          <button class="btn ghost" data-action="cancel">Отмена</button>
           <button class="btn primary" data-action="confirm">${safeConfirm}</button>
         </div>
       </div>
@@ -3345,7 +3557,7 @@ async function confirmModal({ title, message, confirmText }) {
         <h3>${safeTitle}</h3>
         <p>${safeMessage}</p>
         <div class="modal-actions">
-          <button class="btn ghost" data-action="cancel">Cancel</button>
+          <button class="btn ghost" data-action="cancel">Отмена</button>
           <button class="btn danger" data-action="confirm">${safeConfirm}</button>
         </div>
       </div>
@@ -3410,7 +3622,7 @@ async function openDb() {
   return new Promise((resolve) => {
     let request = null;
     try {
-      request = indexedDB.open("mshp-ide-skulpt", 1);
+      request = indexedDB.open("mshp-ide-skulpt", 2);
     } catch (error) {
       console.warn("IndexedDB open failed", error);
       resolve(null);
@@ -3418,10 +3630,21 @@ async function openDb() {
     }
     request.onupgradeneeded = () => {
       const db = request.result;
-      db.createObjectStore("projects", { keyPath: "projectId" });
-      db.createObjectStore("blobs", { keyPath: "blobId" });
-      db.createObjectStore("drafts", { keyPath: "key" });
-      db.createObjectStore("recent", { keyPath: "key" });
+      if (!db.objectStoreNames.contains("projects")) {
+        db.createObjectStore("projects", { keyPath: "projectId" });
+      }
+      if (!db.objectStoreNames.contains("blobs")) {
+        db.createObjectStore("blobs", { keyPath: "blobId" });
+      }
+      if (!db.objectStoreNames.contains("drafts")) {
+        db.createObjectStore("drafts", { keyPath: "key" });
+      }
+      if (!db.objectStoreNames.contains("recent")) {
+        db.createObjectStore("recent", { keyPath: "key" });
+      }
+      if (!db.objectStoreNames.contains("trash")) {
+        db.createObjectStore("trash", { keyPath: "key" });
+      }
     };
     request.onerror = () => {
       console.warn("IndexedDB error", request.error);

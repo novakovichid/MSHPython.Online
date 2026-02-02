@@ -106,7 +106,7 @@
 
     .btn:hover {
       transform: translateY(-1px);
-      border-color: rgba(255, 255, 255, 0.2);
+      border-color: var(--accent);
     }
 
     .btn.primary {
@@ -1086,7 +1086,7 @@
 
     .recent-list {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 16px;
     }
 
@@ -1094,22 +1094,68 @@
       background: rgba(255, 255, 255, 0.95);
       border: 1px solid var(--border);
       border-radius: 16px;
-      padding: 16px;
+      padding: 12px 14px;
       box-shadow: var(--shadow);
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
     }
 
     .recent-title {
       margin: 0;
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 600;
     }
 
     .recent-card small {
       font-size: 13px;
       color: var(--muted);
+      line-height: 1.3;
+    }
+
+    .recent-actions-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    .btn.square {
+      padding: 6px;
+      width: 30px;
+      height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    .recent-actions-row .btn.small {
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+
+    .recent-actions-row .recent-open {
+      height: 26px;
+      min-width: 108px;
+      padding: 4px 12px;
+    }
+
+    .recent-actions-row .btn.square {
+      width: 26px;
+      height: 26px;
+      padding: 4px;
+      font-size: 13px;
+    }
+
+    .recent-actions-row .btn.square.danger {
+      background: transparent;
+      border: 1px solid var(--danger);
+      color: var(--danger);
+    }
+
+    .recent-actions-row .btn.square.danger:hover {
+      background: rgba(224, 75, 75, 0.08);
     }
 
     .label-grid {

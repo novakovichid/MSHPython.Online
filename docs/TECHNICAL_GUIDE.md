@@ -16,6 +16,14 @@ npx jsdoc -c jsdoc.json
 
 Документация будет доступна в `docs/api/` после выполнения.
 
+## Тесты
+Unit-тесты запускаются встроенным runner Node.js:
+```bash
+npm run test:unit
+```
+
+Тесты лежат в `tests/unit/`.
+
 ## Структура каталогов
 - `index.html`: Оболочка SPA Skulpt и CSP.
 - `assets/skulpt-app.js`: Логика интерфейса и выполнения (роутер, редактор, хранилище, шеринг).
@@ -47,6 +55,7 @@ npx jsdoc -c jsdoc.json
 - `blobs`: `{ blobId, data }`
 - `drafts`: `{ key, overlayFiles, deletedFiles, draftLastActiveFile, updatedAt }`
 - `recent`: `{ key: "recent", list: [projectId...] }`
+- `trash`: `{ key: "trash", list: [projectId...] }`
 
 ## Горячие клавиши
 

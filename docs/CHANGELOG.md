@@ -1,0 +1,101 @@
+﻿# CHANGELOG
+
+## Unreleased
+- Landing: топ‑строка с логотипом и кнопкой «Руководство» в одном ряду (baseline), уплотнены отступы и заголовок, чтобы влезали 2 ряда проектов без прокрутки.
+- Landing: «Свои посылки с кодом» → «Свои проекты с кодом».
+- Landing: добавлена кнопка «Руководство» с переходом на HTML‑гайд.
+- Recent: подтверждение очистки списка и новая «Корзина» (перемещение, восстановление, удаление навсегда).
+- Recent: удаление проекта с подтверждением; «Открыть»/«Удалить» в одном ряду, кнопки компактнее и «Удалить» с рамкой.
+- Recent: карточки уплотнены, минимальная ширина уменьшена.
+- Recent: «Открыть» стало шире, кнопки правой части плотнее.
+- Editor: автоотступ при Enter — если на прошлой строке двоеточие или есть отступ.
+- Modals: «Cancel» → «Отмена».
+- Hover: усилен бордер на hover (кнопки становятся заметнее).
+- Default project names: счетчик теперь зависит от количества recent.
+- Docs: обновлены визуальные стили в HTML-руководствах, актуализированы USER_GUIDE/TECHNICAL_GUIDE/student_guide.
+- Tests: добавлены unit-тесты (30+ случаев) и инструкция по запуску.
+- CI: GitHub Actions workflow для unit-тестов, бейдж в README.
+
+## 2026-01-30
+- Update guides UI and behavior (35a7113)
+
+## 2026-01-27
+- added teacher guide (0ea4eb0)
+- Add loading spinner (fb7e920)
+- Localize loading screen (359cb48)
+- Fix Alt+X hotkey (3e0488e)
+
+## 2026-01-26
+- релиз (6fc9014)
+- Add console layout toggle (be5dc42)
+- Update share button label and docs (3ee57a3)
+- Update IDE controls and labels (5da62b3)
+- Default project naming scheme (ace6e16)
+- just fix commit (1754a02)
+- Improve restart UX and input focus (8b30bd4)
+- fix: add null check in renderAssets for hidden asset panel (088c53d)
+- fix: add cache-busting version to skulpt-app.js to force reload of hotkeys modal (aa44b60)
+- docs: add keyboard shortcuts documentation to user and technical guides (2eac01e)
+- feat: add editor keyboard shortcuts (Alt+/, Alt+Up/Down, Ctrl+D, Ctrl+Shift+K, Ctrl+L) (81d99ee)
+- feat: add keyboard shortcuts (Alt+R, Alt+X, Alt+C, Alt+1/2/3) with UI hints (6a9efac)
+- feat: process multi-line console input as separate input() calls (1ef52bb)
+- fix: remove duplicate emoji from title, keep only in favicon (8af87fa)
+- fix: restore snake emoji in title and favicon (e9ba803)
+- feat: convert console input to multi-line textarea with Shift+Enter support (57be30c)
+- docs update (dbb41a3)
+- docs: generate JSDoc HTML API documentation (8e1d54e)
+- docs: add JSDoc comments to main functions and jsdoc config (598ba7a)
+- docs update (76e56b2)
+- docs: focus README on UX features - sharing, modularity, no technical details (87f72db)
+- docs: update to МШПайтон.Онлайн, streamline README, restore sharing docs (e9f0c67)
+- docs: remove assets/resources references, mark functionality as deprecated (d3055c1)
+- docs: remove pyodide references, move dev notes to docs, add archive to gitignore (1beca1e)
+- replaced emojies (5dacac7)
+- Rename МШПаха.Онлайн to МШПайтон.Онлайн (c63719b)
+- Hide Resources panel and mark asset loading as frozen functionality (27abc09)
+- Add documentation about turtle shapes/images limitation (9ac565e)
+- another attempt for shapes + improvements (415e841)
+- readme update (f34ee3c)
+- shape fixes (5f18cbc)
+- minor fixes + shape fixes (57c50c5)
+- another shape fix (0d7a7b1)
+- fixed pics. i hope... (02824a5)
+- docs translate and timeout fix (e9ea34e)
+- проба пофикситбь картинки (d6325f6)
+- skulpt is index now (de9b6cd)
+- new panel size 400 400 (02e9c5f)
+- fix turtle field size (f1be793)
+- fix turtle field size (173a05f)
+- fix turtle field size (eaaebaf)
+- another fix, screen issues (e86727f)
+- fix images again. удалены дублирующиеся механизмы (95e4bcb)
+- fix image issue (dd61bc5)
+- fix syntax (bc2a295)
+- fix images (ac02a18)
+- еще разок фиксим, чистим пошаговку (cc08886)
+- another fix (3714fd3)
+- minor fix (fc8ea7c)
+- removed step-by-step (98f4f23)
+- Switch to non-minified Skulpt build (d638c5b)
+- последний шанс для пошагового (76b2508)
+- фикс построчного режима (0b84be8)
+- Fix landing branding, hotkeys, and error handling (3402c9a)
+- fix title, shortcut and ??? (82b11c0)
+- skulpt is main library now (736c2b2)
+- Align Skulpt turtle canvas size (a444da0)
+- Fix turtle images and multi-turtle support (252d1c8)
+- Lock main module and fix assets/imports (2f59b3b)
+- Document supported browsers (95c5f53)
+- Refine run controls and file naming rules (c25220b)
+- Fix shared stdin decoding in Firefox (d0f14dd)
+- Use div container for Skulpt turtle canvas (5a217b0)
+- Switch Skulpt turtle to native implementation (fac5bb3)
+- Fix Skulpt input to return Promise (f628079)
+- Refactor Skulpt runtime cleanup and harden modals (64fc869)
+- SKULPT ADDED (c99c799)
+- another fix (8e193a9)
+- Ignore test tooling files (e0c55b2)
+- Improve cross-browser compatibility (44e7e76)
+- Add home link and project naming (c71efda)
+- Hide turtle speed slider (1f427b4)
+- Rename to MSHP-Turtle (8e9059a)

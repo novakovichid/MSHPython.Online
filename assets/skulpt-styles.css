@@ -109,7 +109,7 @@ body {
 
 .btn:hover {
   transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--accent);
 }
 
 .btn.primary {
@@ -142,6 +142,16 @@ body {
 .btn.tiny {
   padding: 4px 8px;
   font-size: 11px;
+}
+
+.btn.square {
+  padding: 6px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
 }
 
 .btn:disabled {
@@ -875,6 +885,50 @@ body {
   margin-top: 16px;
 }
 
+.trash-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.trash-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.trash-meta {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.trash-title {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trash-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.trash-actions {
+  display: inline-flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .modal-input {
   width: 100%;
   margin-top: 10px;
@@ -905,30 +959,49 @@ body {
 }
 
 .landing {
-  padding: 40px 56px 48px;
+  padding: 20px 56px 36px;
   overflow-y: auto;
 }
+
+.landing-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
+.landing-brand {
+  align-items: baseline;
+}
+
+.landing-guide {
+  background: var(--panel-2);
+}
+
 
 .hero {
   display: grid;
   grid-template-columns: 1.2fr 0.8fr;
-  gap: 32px;
+  gap: 24px;
   align-items: center;
+  margin-top: 0;
 }
 
 .hero-text h1 {
-  font-size: clamp(30px, 4vw, 46px);
-  margin: 12px 0 16px;
+  font-size: clamp(28px, 3.6vw, 42px);
+  margin: 8px 0 12px;
+  line-height: 1.12;
 }
 
 .hero-text p {
-  font-size: 16px;
+  font-size: 14px;
   color: var(--muted);
   max-width: 520px;
+  margin: 0;
 }
 
 .hero-actions {
-  margin-top: 18px;
+  margin-top: 12px;
 }
 
 .hero-card {
@@ -978,8 +1051,13 @@ body {
   font-weight: 600;
 }
 
+.hero-guide {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
 .recent {
-  margin-top: 42px;
+  margin-top: 28px;
 }
 
 .section-title {
@@ -987,6 +1065,19 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+}
+
+.recent-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#trash-recent {
+  width: 36px;
+  padding: 6px 8px;
+  font-size: 16px;
+  line-height: 1;
 }
 
 .recent-note {
@@ -998,7 +1089,7 @@ body {
 
 .recent-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 16px;
 }
 
@@ -1006,24 +1097,59 @@ body {
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid var(--border);
   border-radius: 16px;
-  padding: 16px;
+  padding: 12px 14px;
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+}
+
+.recent-actions-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.recent-actions-row .btn.small {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.recent-actions-row .recent-open {
+  height: 26px;
+  min-width: 108px;
+  padding: 4px 12px;
+}
+
+.recent-actions-row .btn.square {
+  width: 26px;
+  height: 26px;
+  padding: 4px;
+  font-size: 13px;
+}
+
+.recent-actions-row .btn.square.danger {
+  background: transparent;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+.recent-actions-row .btn.square.danger:hover {
+  background: rgba(224, 75, 75, 0.08);
 }
 
 .recent-card h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
 }
 
 .recent-card small {
   color: var(--muted);
+  line-height: 1.3;
 }
 
 .recent-card .btn {
-  margin-top: 8px;
+  margin-top: 2px;
 }
 
 @keyframes fadeIn {

@@ -1,5 +1,7 @@
 # МШПайтон.Онлайн
 
+[![Tests](https://github.com/novakovichid/MSHP-Turtle/actions/workflows/tests.yml/badge.svg)](https://github.com/novakovichid/MSHP-Turtle/actions/workflows/tests.yml)
+
 Статус: релизная версия.
 
 Веб-среда разработки Python с встроенной графикой Turtle, работающая полностью в браузере.
@@ -24,6 +26,12 @@ serve.bat
 ```
 
 Откройте в браузере и создавайте проекты на Python!
+
+## Тесты
+
+```bash
+npm run test:unit
+```
 
 ## Требования
 
