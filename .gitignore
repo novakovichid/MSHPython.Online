@@ -8,6 +8,7 @@ SHAPES_DEBUG.md
 node_modules/
 playwright-report/
 test-results/
+coverage/
 
 # Test tooling
 playwright.config.cjs

@@ -24,6 +24,11 @@ npm run test:unit
 
 Тесты лежат в `tests/unit/`.
 
+Покрытие (coverage):
+```bash
+npm run test:unit:coverage
+```
+
 ## Структура каталогов
 - `index.html`: Оболочка SPA Skulpt и CSP.
 - `assets/skulpt-app.js`: Логика интерфейса и выполнения (роутер, редактор, хранилище, шеринг).

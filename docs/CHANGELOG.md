@@ -15,6 +15,7 @@
 - Docs: обновлены визуальные стили в HTML-руководствах, актуализированы USER_GUIDE/TECHNICAL_GUIDE/student_guide.
 - Tests: добавлены unit-тесты (30+ случаев) и инструкция по запуску.
 - CI: GitHub Actions workflow для unit-тестов, бейдж в README.
+- Coverage: добавлен сбор покрытия c8, Codecov upload и бейдж.
 
 ## 2026-01-30
 - Update guides UI and behavior (35a7113)

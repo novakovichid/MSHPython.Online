@@ -1,6 +1,7 @@
 # МШПайтон.Онлайн
 
-[![Tests](https://github.com/novakovichid/MSHP-Turtle/actions/workflows/tests.yml/badge.svg)](https://github.com/novakovichid/MSHP-Turtle/actions/workflows/tests.yml)
+[![Tests](https://github.com/novakovichid/MSHPython.Online/actions/workflows/tests.yml/badge.svg)](https://github.com/novakovichid/MSHPython.Online/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/novakovichid/MSHPython.Online/branch/main/graph/badge.svg)](https://codecov.io/gh/novakovichid/MSHPython.Online)
 
 Статус: релизная версия.
 
