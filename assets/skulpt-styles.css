@@ -1037,16 +1037,38 @@ body {
   box-shadow: var(--shadow);
 }
 
-.hero-card-header {
-  font-size: 13px;
+.hero-code-title {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
   color: var(--muted);
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .hero-code {
   font-family: "JetBrains Mono", monospace;
   font-size: 13px;
   margin: 0;
+}
+
+.hero-code-caret {
+  display: inline-block;
+  width: 8px;
+  height: 1em;
+  margin-left: 2px;
+  background: #2a3f5f;
+  animation: hero-code-blink 1s step-end infinite;
+  vertical-align: -2px;
+}
+
+@keyframes hero-code-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  50.01%,
+  100% {
+    opacity: 0;
+  }
 }
 
 .pill {

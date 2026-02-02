@@ -642,7 +642,7 @@ function createDefaultProject(projectId, title) {
     files: [
       {
         name: MAIN_FILE,
-        content: "print(\"Привет из MSHP-IDE!\")\n\nname = input(\"Как вас зовут? \")\nprint(\"Привет,\", name)\n"
+        content: ""
       }
     ],
     assets: [],

@@ -132,6 +132,7 @@ const els = {
   clearRecent: document.getElementById("clear-recent"),
   trashRecent: document.getElementById("trash-recent"),
   recentList: document.getElementById("recent-list"),
+  heroCodeText: document.getElementById("hero-code-text"),
   projectTitle: document.getElementById("project-title"),
   projectMode: document.getElementById("project-mode"),
   saveIndicator: document.getElementById("save-indicator"),
@@ -206,6 +207,47 @@ const memoryDb = {
   trash: new Map()
 };
 
+const HERO_SNIPPETS = [
+  "print(\"Привет!\")",
+  "print(2 + 3)",
+  "print(\"Python\" * 3)",
+  "name = \"Маша\"\nprint(name)",
+  "age = 10\nprint(age)",
+  "for i in range(5):\n    print(i)",
+  "for i in range(1, 6):\n    print(i)",
+  "total = 0\nfor n in range(1, 6):\n    total += n\nprint(total)",
+  "sum_odd = 0\nfor n in range(1, 10, 2):\n    sum_odd += n\nprint(sum_odd)",
+  "text = \"кот\"\nprint(text.upper())",
+  "text = \"Код\"\nprint(text.lower())",
+  "word = \"школа\"\nprint(len(word))",
+  "print(\"Да\" if 3 > 2 else \"Нет\")",
+  "if 5 > 3:\n    print(\"Больше\")",
+  "x = 7\nif x % 2 == 0:\n    print(\"Чет\")\nelse:\n    print(\"Нечет\")",
+  "numbers = [1, 2, 3]\nprint(numbers[0])",
+  "colors = [\"red\", \"green\"]\ncolors.append(\"blue\")\nprint(colors)",
+  "values = [2, 4, 6]\nprint(sum(values))",
+  "for ch in \"кот\":\n    print(ch)",
+  "print(\"мир\".replace(\"и\", \"ы\"))",
+  "name = input(\"Как тебя зовут? \")\nprint(\"Привет,\", name)",
+  "city = input(\"Город? \")\nprint(\"Ты из\", city)",
+  "a = 5\nb = 8\nprint(max(a, b))",
+  "a = 5\nb = 8\nprint(min(a, b))",
+  "n = 4\nprint(n * n)",
+  "n = 3\nprint(n ** 3)",
+  "import turtle\n\nt = turtle.Turtle()\nt.forward(80)",
+  "import turtle\n\nt = turtle.Turtle()\nfor _ in range(4):\n    t.forward(60)\n    t.right(90)",
+  "import turtle\n\nt = turtle.Turtle()\nfor _ in range(3):\n    t.forward(70)\n    t.left(120)",
+  "import turtle\n\nt = turtle.Turtle()\nfor _ in range(36):\n    t.forward(5)\n    t.left(10)"
+];
+const heroTyping = {
+  index: 0,
+  offset: 0,
+  deleting: false,
+  timer: null,
+  order: [],
+  orderIndex: 0
+};
+
 /**
  * Extracts the appropriate key for a given object from a database store.
  * @param {string} storeName - Store name: "projects", "blobs", "drafts", or "recent"
@@ -265,6 +307,7 @@ init();
 async function init() {
   showGuard(true);
   bindUi();
+  startHeroTyping();
   setTurtlePaneVisible(false);
   state.db = await openDb();
   if (!state.db) {
@@ -393,6 +436,58 @@ function bindUi() {
       els.turtleCanvas.focus();
     }
   });
+}
+
+function startHeroTyping() {
+  if (!els.heroCodeText || heroTyping.timer) {
+    return;
+  }
+
+  const shuffleOrder = () => {
+    heroTyping.order = HERO_SNIPPETS.map((_, idx) => idx);
+    for (let i = heroTyping.order.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [heroTyping.order[i], heroTyping.order[j]] = [heroTyping.order[j], heroTyping.order[i]];
+    }
+    heroTyping.orderIndex = 0;
+  };
+
+  const nextSnippetIndex = () => {
+    if (!heroTyping.order.length || heroTyping.orderIndex >= heroTyping.order.length) {
+      shuffleOrder();
+    }
+    const idx = heroTyping.order[heroTyping.orderIndex];
+    heroTyping.orderIndex += 1;
+    return idx;
+  };
+
+  shuffleOrder();
+  heroTyping.index = nextSnippetIndex();
+
+  const tick = () => {
+    const snippet = HERO_SNIPPETS[heroTyping.index];
+    const speed = heroTyping.deleting ? 14 : 28;
+
+    heroTyping.offset = heroTyping.deleting
+      ? Math.max(0, heroTyping.offset - 1)
+      : Math.min(snippet.length, heroTyping.offset + 1);
+
+    els.heroCodeText.textContent = snippet.slice(0, heroTyping.offset);
+
+    let delay = speed;
+    if (!heroTyping.deleting && heroTyping.offset === snippet.length) {
+      heroTyping.deleting = true;
+      delay = 700;
+    } else if (heroTyping.deleting && heroTyping.offset === 0) {
+      heroTyping.deleting = false;
+      heroTyping.index = nextSnippetIndex();
+      delay = 250;
+    }
+
+    heroTyping.timer = setTimeout(tick, delay);
+  };
+
+  tick();
 }
 
 function showGuard(show) {
@@ -615,7 +710,7 @@ function createDefaultProject(projectId, title) {
     files: [
       {
         name: MAIN_FILE,
-        content: "print(\"Привет из MSHP-IDE!\")\n\nname = input(\"Как вас зовут? \")\nprint(\"Привет,\", name)\n"
+        content: ""
       }
     ],
     assets: [],
