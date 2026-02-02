@@ -1,5 +1,6 @@
-import { gzipSync, gunzipSync } from "./skulpt-fflate.esm.js";
-import { mergeUniqueIds } from "./utils/recent-utils.mjs";
+import { gzipSync, gunzipSync, unzipSync } from "./skulpt-fflate.esm.js";
+import { mergeUniqueIds } from "./utils/recent-utils.js";
+import { getBaseName, createNumberedImportName } from "./utils/import-utils.js";
 
 const CONFIG = {
   RUN_TIMEOUT_MS: 60000,
@@ -140,6 +141,7 @@ const els = {
   clearBtn: document.getElementById("clear-btn"),
   shareBtn: document.getElementById("share-btn"),
   exportBtn: document.getElementById("export-btn"),
+  importBtn: document.getElementById("import-btn"),
   remixBtn: document.getElementById("remix-btn"),
   resetBtn: document.getElementById("reset-btn"),
   tabSizeBtn: document.getElementById("tab-size-btn"),
@@ -159,6 +161,7 @@ const els = {
   lineNumbers: document.getElementById("line-numbers"),
   editorHighlight: document.getElementById("editor-highlight"),
   editor: document.getElementById("editor"),
+  importInput: document.getElementById("import-input"),
   consoleOutput: document.getElementById("console-output"),
   consoleInput: document.getElementById("console-input"),
   consoleSend: document.getElementById("console-send"),
@@ -300,6 +303,24 @@ function bindUi() {
   els.clearBtn.addEventListener("click", clearConsole);
   els.shareBtn.addEventListener("click", shareProject);
   els.exportBtn.addEventListener("click", exportProject);
+  if (els.importBtn) {
+    els.importBtn.addEventListener("click", () => {
+      if (state.mode !== "project" || state.embed.readonly || !els.importInput) {
+        return;
+      }
+      els.importInput.value = "";
+      els.importInput.click();
+    });
+  }
+  if (els.importInput) {
+    els.importInput.addEventListener("change", (event) => {
+      const files = Array.from(event.target.files || []);
+      if (!files.length) {
+        return;
+      }
+      importFiles(files);
+    });
+  }
   els.remixBtn.addEventListener("click", remixSnapshot);
   els.resetBtn.addEventListener("click", resetSnapshot);
   els.tabSizeBtn.addEventListener("click", toggleTabSize);
@@ -705,6 +726,9 @@ function setMode(mode) {
   els.snapshotBanner.classList.toggle("hidden", !isSnapshot);
   els.shareBtn.classList.toggle("hidden", !isProject);
   els.exportBtn.classList.toggle("hidden", !isProject);
+  if (els.importBtn) {
+    els.importBtn.classList.toggle("hidden", !isProject);
+  }
   els.remixBtn.classList.toggle("hidden", !isSnapshot);
   els.resetBtn.classList.toggle("hidden", !isSnapshot);
   els.saveIndicator.classList.toggle("hidden", !isProject);
@@ -1383,7 +1407,7 @@ async function deleteFile() {
     scheduleDraftSave();
   }
 
-  state.activeFile = getCurrentFiles()[0]?.name || null;
+  setActiveFile(getCurrentFiles()[0]?.name || null);
   renderFiles(getCurrentFiles());
   updateTabs();
   updateEditorContent();
@@ -2249,6 +2273,217 @@ async function exportProject() {
       await exportAsZip();
     }
     closeModal();
+  });
+}
+
+async function importFiles(files) {
+  if (state.mode !== "project" || state.embed.readonly) {
+    return;
+  }
+  const imports = [];
+  let skipped = 0;
+  for (const file of files) {
+    const name = String(file.name || "");
+    const lower = name.toLowerCase();
+    if (lower.endsWith(".py")) {
+      const content = await file.text();
+      imports.push({ name, content });
+      continue;
+    }
+    if (lower.endsWith(".zip")) {
+      const buffer = await file.arrayBuffer();
+      const items = extractPyFromZip(new Uint8Array(buffer));
+      imports.push(...items);
+      continue;
+    }
+    if (lower.endsWith(".json")) {
+      const text = await file.text();
+      const items = extractPyFromJson(text);
+      if (!items) {
+        showToast("Некорректный JSON для импорта.");
+        return;
+      }
+      imports.push(...items);
+      continue;
+    }
+    skipped += 1;
+  }
+  if (!imports.length) {
+    showToast("Не найдено .py файлов для импорта.");
+    return;
+  }
+  if (skipped) {
+    showToast("Некоторые файлы пропущены (поддерживаются .py, .zip, .json).");
+  }
+  await applyImportedFiles(imports);
+}
+
+function extractPyFromZip(bytes) {
+  const out = [];
+  let entries = {};
+  try {
+    entries = unzipSync(bytes);
+  } catch (error) {
+    console.warn("Zip import failed", error);
+    showToast("Не удалось прочитать ZIP архив.");
+    return out;
+  }
+  for (const [entryName, data] of Object.entries(entries)) {
+    if (!entryName || entryName.endsWith("/")) {
+      continue;
+    }
+    if (!entryName.toLowerCase().endsWith(".py")) {
+      continue;
+    }
+    const base = getBaseName(entryName);
+    const content = decoder.decode(data);
+    out.push({ name: base, content });
+  }
+  return out;
+}
+
+function extractPyFromJson(text) {
+  let payload = null;
+  try {
+    payload = JSON.parse(text);
+  } catch (error) {
+    return null;
+  }
+  if (!payload || payload.version !== 1 || !payload.project || !Array.isArray(payload.project.files)) {
+    return null;
+  }
+  const out = [];
+  let skippedAssets = false;
+  if (Array.isArray(payload.project.assets) && payload.project.assets.length) {
+    skippedAssets = true;
+  }
+  for (const file of payload.project.files) {
+    if (!file || !file.name) {
+      continue;
+    }
+    const name = String(file.name);
+    if (!name.toLowerCase().endsWith(".py")) {
+      continue;
+    }
+    out.push({ name, content: String(file.content || "") });
+  }
+  if (skippedAssets) {
+    showToast("Ресурсы из JSON сейчас не импортируются.");
+  }
+  return out;
+}
+
+function isNameTaken(name, added) {
+  return Boolean(getFileByName(name) || added.has(name));
+}
+
+async function applyImportedFiles(imports) {
+  const added = new Set();
+  let changed = false;
+  let applyAllAction = null;
+  for (const item of imports) {
+    const normalized = normalizePythonFileName(item.name);
+    if (!normalized || !validateFileName(normalized)) {
+      showToast(`Некорректное имя файла: ${item.name}`);
+      continue;
+    }
+    if (isNameTaken(normalized, added)) {
+      const decision = await resolveImportConflict(normalized, applyAllAction, added);
+      if (decision.action === "cancelAll") {
+        return;
+      }
+      if (decision.applyAll && decision.action !== "none") {
+        applyAllAction = decision.action;
+      }
+      if (decision.action === "skip") {
+        continue;
+      }
+      if (decision.action === "replace") {
+        const target = getFileByName(normalized);
+        if (target) {
+          target.content = item.content || "";
+          changed = true;
+        }
+        continue;
+      }
+      if (decision.action === "rename") {
+        const finalName = decision.newName;
+        if (!finalName) {
+          continue;
+        }
+        state.project.files.push({ name: finalName, content: item.content || "" });
+        added.add(finalName);
+        changed = true;
+        continue;
+      }
+    } else {
+      state.project.files.push({ name: normalized, content: item.content || "" });
+      added.add(normalized);
+      changed = true;
+    }
+  }
+  if (changed) {
+    renderProject();
+    scheduleSave();
+  }
+}
+
+async function resolveImportConflict(name, applyAllAction, added) {
+  if (applyAllAction === "replace") {
+    return { action: "replace", applyAll: false };
+  }
+  if (applyAllAction === "rename") {
+    const autoName = createNumberedImportName(name, (candidate) => isNameTaken(candidate, added));
+    return { action: "rename", applyAll: false, newName: autoName };
+  }
+  if (applyAllAction === "cancel") {
+    return { action: "cancelAll", applyAll: false };
+  }
+  return new Promise((resolve) => {
+    const autoName = createNumberedImportName(name, (candidate) => isNameTaken(candidate, added));
+    const html = `
+      <div class="modal-card modal-card-fit">
+        <h3>Файл уже существует</h3>
+        <p>Модуль <span class="modal-file-name">${escapeHtml(name)}</span> уже есть. Что сделать?</p>
+        <label class="modal-check">
+          <input type="checkbox" id="import-apply-all" />
+          Применить ко всем конфликтам
+        </label>
+        <input class="modal-input" id="import-new-name" value="${escapeHtml(autoName)}" />
+        <div class="modal-actions">
+          <button class="btn ghost" data-action="cancel">Отмена</button>
+          <button class="btn" data-action="replace">Заменить</button>
+          <button class="btn primary" data-action="rename">Импортировать с новым именем</button>
+        </div>
+      </div>
+    `;
+    openModal(html, (action) => {
+      const applyAll = Boolean(els.modal.querySelector("#import-apply-all")?.checked);
+      if (action === "replace") {
+        closeModal();
+        resolve({ action: "replace", applyAll });
+        return;
+      }
+      if (action === "rename") {
+        const input = els.modal.querySelector("#import-new-name");
+        const value = input ? input.value : "";
+        const normalized = normalizePythonFileName(value);
+        if (!normalized || !validateFileName(normalized) || isNameTaken(normalized, added)) {
+          showToast("Некорректное или занятое имя файла.");
+          return;
+        }
+        closeModal();
+        resolve({ action: "rename", applyAll, newName: normalized });
+        return;
+      }
+      closeModal();
+      resolve({ action: applyAll ? "cancelAll" : "skip", applyAll });
+    });
+    const input = els.modal.querySelector("#import-new-name");
+    if (input) {
+      input.focus();
+      input.select();
+    }
   });
 }
 

@@ -60,7 +60,10 @@ test("turtle shape changes canvas output", async ({ page }) => {
   await openProject(page, `turtle-${Date.now()}`);
   await runCode(page, 'import turtle\n\nturtle.shape("classic")\n');
   const classicHash = await page.evaluate(() => {
-    const canvas = document.querySelector("#turtle-canvas");
+    const canvas = document.querySelector("#turtle-canvas canvas");
+    if (!canvas) {
+      return null;
+    }
     const ctx = canvas.getContext("2d");
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
     let hash = 0;
@@ -71,7 +74,10 @@ test("turtle shape changes canvas output", async ({ page }) => {
   });
   await runCode(page, 'import turtle\n\nturtle.shape("circle")\n');
   await page.waitForFunction((prev) => {
-    const canvas = document.querySelector("#turtle-canvas");
+    const canvas = document.querySelector("#turtle-canvas canvas");
+    if (!canvas) {
+      return false;
+    }
     const ctx = canvas.getContext("2d");
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
     let hash = 0;
@@ -81,7 +87,10 @@ test("turtle shape changes canvas output", async ({ page }) => {
     return hash !== prev;
   }, classicHash);
   const circleHash = await page.evaluate(() => {
-    const canvas = document.querySelector("#turtle-canvas");
+    const canvas = document.querySelector("#turtle-canvas canvas");
+    if (!canvas) {
+      return null;
+    }
     const ctx = canvas.getContext("2d");
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
     let hash = 0;

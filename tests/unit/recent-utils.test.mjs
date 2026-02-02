@@ -1,6 +1,6 @@
 ﻿import test from "node:test";
 import assert from "node:assert/strict";
-import { mergeUniqueIds } from "../../assets/utils/recent-utils.mjs";
+import { mergeUniqueIds } from "../../assets/utils/recent-utils.js";
 
 const cases = [
   {
@@ -194,6 +194,8 @@ const cases = [
 cases.forEach(({ name, primary, secondary, expected }) => {
   test(`mergeUniqueIds ${name}`, () => {
     const result = mergeUniqueIds(primary, secondary);
+    assert.notEqual(result, primary);
+    assert.notEqual(result, secondary);
     if (expected.some((value) => Number.isNaN(value))) {
       assert.equal(result.length, expected.length);
       expected.forEach((value, index) => {
