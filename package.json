@@ -1,0 +1,12 @@
+{
+  "name": "mshp-ide",
+  "private": true,
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "jsdoc": "^4.0.5"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "test:unit": "node --test tests/unit/*.test.mjs"
+  }
+}
