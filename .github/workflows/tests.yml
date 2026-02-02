@@ -21,9 +21,7 @@ jobs:
         run: npm run test:unit
       - name: Coverage
         run: npm run test:unit:coverage
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+      - name: Upload coverage to Coveralls
+        uses: coverallsapp/github-action@v2
         with:
-          files: ./coverage/lcov.info
-          flags: unit
-          fail_ci_if_error: false
+          file: coverage/lcov.info
