@@ -93,6 +93,12 @@ npm run test:unit:coverage
 npx playwright test
 ```
 
+E2E в песочнице (Chromium):
+
+```bash
+npx playwright test -c playwright.sandbox.config.cjs
+```
+
 Запуск только snapshot/remix сценариев:
 
 ```bash

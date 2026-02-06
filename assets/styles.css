@@ -430,7 +430,9 @@ body {
   font-size: inherit;
   line-height: inherit;
   color: var(--text);
-  white-space: pre-wrap;
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
   overflow: auto;
   pointer-events: none;
   scrollbar-width: none;
@@ -441,25 +443,25 @@ body {
 }
 
 .editor-highlight .token.keyword {
-  color: #1c6bff;
-  font-weight: 600;
+  color: #ff00b7;
+  font-weight: 400;
 }
 
 .editor-highlight .token.string {
-  color: #1b7a4b;
+  color: #ff1f1f;
 }
 
 .editor-highlight .token.comment {
-  color: #7a889f;
-  font-style: italic;
+  color: #00a600;
+  font-style: normal;
 }
 
 .editor-highlight .token.number {
-  color: #c25727;
+  color: #3b43ff;
 }
 
 .editor-highlight .token.builtin {
-  color: #0f7fa6;
+  color: #111111;
 }
 
 .editor-toolbar {
@@ -483,6 +485,14 @@ body {
 .editor-actions .run-status {
   padding-left: 10px;
   border-left: 1px solid var(--border);
+}
+
+#font-dec-btn,
+#font-inc-btn {
+  min-width: 36px;
+  padding: 4px 8px;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .tabs {
@@ -523,6 +533,9 @@ body {
   font-size: inherit;
   line-height: inherit;
   padding: 14px 16px;
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
   resize: none;
   tab-size: 4;
   z-index: 1;

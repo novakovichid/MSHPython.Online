@@ -38,6 +38,66 @@ async function runCodeExpectError(page, code, pattern) {
   await expect(page.locator("#console-output .console-error")).toHaveCount(1);
 }
 
+function extractLastLineNumber(text) {
+  const matches = [...String(text || "").matchAll(/\bline\s+(\d+)\b/gi)];
+  if (!matches.length) {
+    return null;
+  }
+  return Number(matches[matches.length - 1][1]);
+}
+
+async function getEditorSyncMetrics(page, { scrollToBottom = true } = {}) {
+  return page.evaluate(({ scrollToBottom: shouldScroll }) => {
+    const editor = document.querySelector("#editor");
+    const highlight = document.querySelector("#editor-highlight");
+    const numbers = document.querySelector("#line-numbers");
+    if (!editor || !highlight || !numbers) {
+      return null;
+    }
+    if (shouldScroll) {
+      editor.scrollTop = editor.scrollHeight;
+      editor.scrollLeft = Math.max(0, editor.scrollWidth - editor.clientWidth);
+      editor.dispatchEvent(new Event("scroll", { bubbles: true }));
+    }
+    const editorStyle = getComputedStyle(editor);
+    const highlightStyle = getComputedStyle(highlight);
+    return {
+      editorScrollTop: editor.scrollTop,
+      highlightScrollTop: highlight.scrollTop,
+      numbersScrollTop: numbers.scrollTop,
+      editorScrollLeft: editor.scrollLeft,
+      highlightScrollLeft: highlight.scrollLeft,
+      editorLineHeight: editorStyle.lineHeight,
+      highlightLineHeight: highlightStyle.lineHeight,
+      editorWhiteSpace: editorStyle.whiteSpace,
+      highlightWhiteSpace: highlightStyle.whiteSpace,
+      scrollHeightDelta: Math.abs(editor.scrollHeight - highlight.scrollHeight)
+    };
+  }, { scrollToBottom });
+}
+
+async function getEditorFontMetrics(page) {
+  return page.evaluate(() => {
+    const editor = document.querySelector("#editor");
+    const highlight = document.querySelector("#editor-highlight");
+    const numbers = document.querySelector("#line-numbers");
+    if (!editor || !highlight || !numbers) {
+      return null;
+    }
+    const editorStyle = getComputedStyle(editor);
+    const highlightStyle = getComputedStyle(highlight);
+    const numbersStyle = getComputedStyle(numbers);
+    return {
+      editorFontSize: Number.parseFloat(editorStyle.fontSize),
+      highlightFontSize: Number.parseFloat(highlightStyle.fontSize),
+      numbersFontSize: Number.parseFloat(numbersStyle.fontSize),
+      editorLineHeight: editorStyle.lineHeight,
+      highlightLineHeight: highlightStyle.lineHeight,
+      numbersLineHeight: numbersStyle.lineHeight
+    };
+  });
+}
+
 test.describe.configure({ mode: "serial" });
 
 test("stdin works via console input", async ({ page }) => {
@@ -80,6 +140,107 @@ test("line numbers match editor metrics", async ({ page }) => {
   expect(metrics.numberLines).toBe(metrics.lineCount);
   expect(metrics.numbersFontSize).toBe(metrics.editorFontSize);
   expect(metrics.numbersLineHeight).toBe(metrics.editorLineHeight);
+});
+
+test("editor font controls change font size and keep layers aligned", async ({ page }) => {
+  await openProject(page, `font-controls-${Date.now()}`);
+  await expect(page.locator("#font-dec-btn")).toBeVisible();
+  await expect(page.locator("#font-inc-btn")).toBeVisible();
+  const base = await getEditorFontMetrics(page);
+  expect(base).not.toBeNull();
+
+  await page.click("#font-inc-btn");
+  const afterInc = await getEditorFontMetrics(page);
+  expect(afterInc.editorFontSize).toBe(base.editorFontSize + 1);
+  expect(afterInc.highlightFontSize).toBe(afterInc.editorFontSize);
+  expect(afterInc.numbersFontSize).toBe(afterInc.editorFontSize);
+  expect(afterInc.highlightLineHeight).toBe(afterInc.editorLineHeight);
+  expect(afterInc.numbersLineHeight).toBe(afterInc.editorLineHeight);
+
+  await page.click("#font-dec-btn");
+  const afterDec = await getEditorFontMetrics(page);
+  expect(afterDec.editorFontSize).toBe(base.editorFontSize);
+  expect(afterDec.highlightFontSize).toBe(afterDec.editorFontSize);
+  expect(afterDec.numbersFontSize).toBe(afterDec.editorFontSize);
+
+  const sync = await getEditorSyncMetrics(page);
+  expect(sync.highlightScrollTop).toBe(sync.editorScrollTop);
+  expect(sync.numbersScrollTop).toBe(sync.editorScrollTop);
+  expect(sync.highlightScrollLeft).toBe(sync.editorScrollLeft);
+});
+
+test("editor font size persists after reload", async ({ page }) => {
+  await openProject(page, `font-persist-${Date.now()}`);
+  const base = await getEditorFontMetrics(page);
+  await page.click("#font-inc-btn");
+  await page.reload();
+  await page.waitForSelector("#editor", { state: "visible" });
+  const afterReload = await getEditorFontMetrics(page);
+  expect(afterReload.editorFontSize).toBe(base.editorFontSize + 1);
+  expect(afterReload.highlightFontSize).toBe(afterReload.editorFontSize);
+  expect(afterReload.numbersFontSize).toBe(afterReload.editorFontSize);
+});
+
+test("editor font controls respect bounds", async ({ page }) => {
+  await openProject(page, `font-bounds-${Date.now()}`);
+  for (let i = 0; i < 40; i += 1) {
+    const isDisabled = await page.locator("#font-dec-btn").isDisabled();
+    if (isDisabled) {
+      break;
+    }
+    await page.click("#font-dec-btn");
+  }
+  let metrics = await getEditorFontMetrics(page);
+  expect(metrics.editorFontSize).toBe(12);
+  await expect(page.locator("#font-dec-btn")).toBeDisabled();
+
+  for (let i = 0; i < 40; i += 1) {
+    const isDisabled = await page.locator("#font-inc-btn").isDisabled();
+    if (isDisabled) {
+      break;
+    }
+    await page.click("#font-inc-btn");
+  }
+  metrics = await getEditorFontMetrics(page);
+  expect(metrics.editorFontSize).toBe(20);
+  await expect(page.locator("#font-inc-btn")).toBeDisabled();
+});
+
+test("cursor stays aligned on long content", async ({ page }) => {
+  await openProject(page, `cursor-long-${Date.now()}`);
+  const longChunk = "x".repeat(90);
+  const code = Array.from(
+    { length: 80 },
+    (_, i) => `for item_${i} in range(3): print(item_${i}, "${longChunk}")`
+  ).join("\n");
+  await page.fill("#editor", code);
+  const metrics = await getEditorSyncMetrics(page);
+  expect(metrics).not.toBeNull();
+  expect(metrics.highlightScrollTop).toBe(metrics.editorScrollTop);
+  expect(metrics.numbersScrollTop).toBe(metrics.editorScrollTop);
+  expect(metrics.highlightScrollLeft).toBe(metrics.editorScrollLeft);
+  expect(metrics.editorLineHeight).toBe(metrics.highlightLineHeight);
+  expect(metrics.editorWhiteSpace).toBe(metrics.highlightWhiteSpace);
+  expect(metrics.scrollHeightDelta).toBeLessThanOrEqual(2);
+});
+
+test("cursor stays aligned after viewport shrink", async ({ page }) => {
+  await page.setViewportSize({ width: 920, height: 820 });
+  await openProject(page, `cursor-shrink-${Date.now()}`);
+  const longChunk = "very_long_token_".repeat(18);
+  const code = Array.from(
+    { length: 50 },
+    (_, i) => `print("line_${i}", "${longChunk}")`
+  ).join("\n");
+  await page.fill("#editor", code);
+  await page.setViewportSize({ width: 700, height: 820 });
+  await page.waitForTimeout(150);
+  const metrics = await getEditorSyncMetrics(page);
+  expect(metrics).not.toBeNull();
+  expect(metrics.editorWhiteSpace).toBe(metrics.highlightWhiteSpace);
+  expect(metrics.highlightScrollTop).toBe(metrics.editorScrollTop);
+  expect(metrics.numbersScrollTop).toBe(metrics.editorScrollTop);
+  expect(metrics.scrollHeightDelta).toBeLessThanOrEqual(2);
 });
 
 test("turtle shape changes canvas output", async ({ page }) => {
@@ -221,6 +382,33 @@ test.describe("negative scenarios", () => {
   test("python assertion failure is reported", async ({ page }) => {
     await openProject(page, `neg-assert-${Date.now()}`);
     await runCodeExpectError(page, 'assert False, "assertion broke"\n', "AssertionError");
+  });
+
+  test("EOF in multi-line statement reports correct payload line", async ({ page }) => {
+    await openProject(page, `neg-eof-${Date.now()}`);
+    const code = "print(1)\nvalue = (\n  1 + 2\n";
+    await runCodeExpectError(page, code, /EOF|unexpected EOF|multi-line statement/i);
+    const output = await page.textContent("#console-output");
+    const line = extractLastLineNumber(output);
+    expect(line).toBe(2);
+  });
+
+  test("EOF for unclosed print call points to unclosed delimiter line", async ({ page }) => {
+    await openProject(page, `neg-eof-print-${Date.now()}`);
+    const code = "a = int(input())\nb = int(input())\nprint(a+b";
+    await runCodeExpectError(page, code, /EOF|unexpected EOF|multi-line statement/i);
+    const output = await page.textContent("#console-output");
+    const line = extractLastLineNumber(output);
+    const expectedLine = code.replace(/\r\n?/g, "\n").split("\n").length;
+    expect(line).toBe(expectedLine);
+  });
+
+  test("runtime sanitizes invisible and control chars before execution", async ({ page }) => {
+    await openProject(page, `neg-invisible-${Date.now()}`);
+    const code = "a = 1\u200B\r\nb = 2\u0007\r\nprint(a + b)\n";
+    await runCode(page, code);
+    await expect(page.locator("#run-status")).toHaveText("Готово", { timeout: 15000 });
+    await expect(page.locator("#console-output")).toContainText("3");
   });
 
   test("snapshot route without payload redirects to landing", async ({ page }) => {
