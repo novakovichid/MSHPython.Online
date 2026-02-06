@@ -1,6 +1,7 @@
 import { gzipSync, gunzipSync, unzipSync } from "./fflate.esm.js";
 import { mergeUniqueIds } from "./utils/recent-utils.js";
 import { getBaseName, createNumberedImportName } from "./utils/import-utils.js";
+import { cloneFilesForProject, resolveLastActiveFile } from "./utils/remix-utils.js";
 
 const CONFIG = {
   RUN_TIMEOUT_MS: 10000,
@@ -139,6 +140,8 @@ const els = {
   recentList: document.getElementById("recent-list"),
   projectTitle: document.getElementById("project-title"),
   projectMode: document.getElementById("project-mode"),
+  topbarRight: document.querySelector(".topbar-right"),
+  topActions: document.querySelector(".top-actions"),
   saveIndicator: document.getElementById("save-indicator"),
   runBtn: document.getElementById("run-btn"),
   stopBtn: document.getElementById("stop-btn"),
@@ -344,8 +347,8 @@ async function init() {
   }
   loadSettings();
   initWorker();
-  await router();
   window.addEventListener("hashchange", router);
+  await router();
 }
 
 async function ensureRuntimeCompatibility(swEnabled) {
@@ -608,19 +611,28 @@ async function openProject(projectId) {
   await rememberRecent(project.projectId);
 }
 
-async function createProjectAndOpen() {
+async function createProjectAndOpen(options = {}) {
+  const requestedTitle = String(options.initialTitle || "").trim();
+  const defaultTitle = requestedTitle || "Без названия";
   const name = await promptModal({
     title: "Название проекта",
-    placeholder: "Мой проект",
+    placeholder: requestedTitle ? defaultTitle : "Мой проект",
+    value: requestedTitle ? defaultTitle : "",
     confirmText: "Создать"
   });
   if (name === null) {
-    return;
+    return null;
   }
   const trimmed = name.trim();
-  const project = createDefaultProject(undefined, trimmed || "Без названия");
+  const project = createDefaultProject(undefined, trimmed || defaultTitle);
+  if (Array.isArray(options.files)) {
+    project.files = cloneFilesForProject(options.files, MAIN_FILE);
+  }
+  project.lastActiveFile = resolveLastActiveFile(project.files, options.lastActiveFile, MAIN_FILE);
+  project.assets = [];
   await saveProject(project);
   location.hash = `#/p/${project.projectId}`;
+  return project;
 }
 
 function openEphemeralProject() {
@@ -673,7 +685,8 @@ function ensureMainProject() {
     return;
   }
   const changed = ensureMainFileRecord(state.project.files);
-  if (!state.project.lastActiveFile || !getFileByName(state.project.lastActiveFile)) {
+  const hasLastActive = state.project.files.some((file) => file.name === state.project.lastActiveFile);
+  if (!state.project.lastActiveFile || !hasLastActive) {
     state.project.lastActiveFile = MAIN_FILE;
   }
   if (changed) {
@@ -740,9 +753,15 @@ function setMode(mode) {
   state.mode = mode;
   const isProject = mode === "project";
   const isSnapshot = mode === "snapshot";
+  if (!isSnapshot) {
+    clearTimeout(state.draftTimer);
+  }
 
   els.projectMode.textContent = isProject ? "Проект" : "Снимок";
   els.snapshotBanner.classList.toggle("hidden", !isSnapshot);
+  if (els.topbarRight) {
+    els.topbarRight.classList.toggle("snapshot-mode", isSnapshot);
+  }
   els.shareBtn.classList.toggle("hidden", !isProject);
   els.exportBtn.classList.toggle("hidden", !isProject);
   if (els.importBtn) {
@@ -750,6 +769,8 @@ function setMode(mode) {
   }
   els.remixBtn.classList.toggle("hidden", !isSnapshot);
   els.resetBtn.classList.toggle("hidden", !isSnapshot);
+  els.remixBtn.classList.toggle("snapshot-accent", isSnapshot);
+  els.resetBtn.classList.toggle("snapshot-accent", isSnapshot);
   els.saveIndicator.classList.toggle("hidden", !isProject);
 
   const disableEdits = state.embed.readonly;
@@ -1476,6 +1497,9 @@ function scheduleDraftSave() {
   }
   clearTimeout(state.draftTimer);
   state.draftTimer = setTimeout(async () => {
+    if (state.mode !== "snapshot" || !state.snapshot || !state.snapshot.draft) {
+      return;
+    }
     const draft = state.snapshot.draft;
     draft.updatedAt = Date.now();
     await dbPut("drafts", draft);
@@ -1903,16 +1927,14 @@ async function remixSnapshot() {
     return;
   }
   const files = getEffectiveFiles();
-  const project = {
-    projectId: createUuid(),
-    title: state.snapshot.baseline.title || "Ремикс",
+  const project = await createProjectAndOpen({
+    initialTitle: state.snapshot.baseline.title || "Ремикс",
     files,
-    assets: [],
-    lastActiveFile: state.activeFile || files[0]?.name || null,
-    updatedAt: Date.now()
-  };
-  await saveProject(project);
-  location.hash = `#/p/${project.projectId}`;
+    lastActiveFile: state.activeFile || files[0]?.name || MAIN_FILE
+  });
+  if (project) {
+    showToast("Ремикс создан: проект сохранён в постоянных.");
+  }
 }
 
 async function resetSnapshot() {
@@ -1936,7 +1958,10 @@ async function resetSnapshot() {
     draftLastActiveFile: null,
     updatedAt: Date.now()
   };
-  state.activeFile = state.snapshot.baseline.lastActiveFile || state.snapshot.baseline.files[0]?.name || null;
+  const baselineLastActive = state.snapshot.baseline.lastActiveFile;
+  const hasBaselineLastActive = state.snapshot.baseline.files.some((file) => file.name === baselineLastActive);
+  state.activeFile = hasBaselineLastActive ? baselineLastActive : MAIN_FILE;
+  ensureMainSnapshot();
   renderSnapshot();
 }
 async function exportProject() {
