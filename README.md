@@ -99,19 +99,6 @@ npx playwright test
 npx playwright test tests/ide.spec.js --grep "remix|snapshot"
 ```
 
-## Браузеры для Playwright
-
-Если нужен Chromium для Playwright:
-
-```bash
-npx playwright install chromium
-```
-
-Важно:
-
-- Это не системная установка браузера.
-- Бинарь ставится в пользовательский кеш Playwright и переиспользуется между проектами.
-
 ## Структура проекта (основное)
 
 - `index.html` - основной интерфейс.
