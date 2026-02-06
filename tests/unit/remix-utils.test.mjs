@@ -22,6 +22,19 @@ test("cloneFilesForProject adds missing main.py", () => {
   assert.equal(cloned[1].name, "a.py");
 });
 
+test("cloneFilesForProject skips invalid entries and normalizes content", () => {
+  const cloned = cloneFilesForProject([
+    null,
+    {},
+    { name: "", content: "x" },
+    { name: "ok.py", content: 123 }
+  ], "main.py");
+  assert.deepEqual(cloned, [
+    { name: "main.py", content: "" },
+    { name: "ok.py", content: "123" }
+  ]);
+});
+
 test("resolveLastActiveFile prefers valid candidate and falls back to main.py", () => {
   const files = [
     { name: "main.py", content: "" },
@@ -29,4 +42,13 @@ test("resolveLastActiveFile prefers valid candidate and falls back to main.py", 
   ];
   assert.equal(resolveLastActiveFile(files, "mod.py", "main.py"), "mod.py");
   assert.equal(resolveLastActiveFile(files, "missing.py", "main.py"), "main.py");
+});
+
+test("resolveLastActiveFile falls back to first file or mainFile for empty list", () => {
+  const files = [
+    { name: "utils.py", content: "" },
+    { name: "mod.py", content: "" }
+  ];
+  assert.equal(resolveLastActiveFile(files, "missing.py", "main.py"), "utils.py");
+  assert.equal(resolveLastActiveFile([], "missing.py", "main.py"), "main.py");
 });
