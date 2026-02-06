@@ -14,6 +14,10 @@ const CONFIG = {
 };
 const MAIN_FILE = "main.py";
 const STDIN_SHARED_BYTES = 8192;
+const EDITOR_FONT_MIN = 12;
+const EDITOR_FONT_MAX = 20;
+const EDITOR_FONT_STEP = 1;
+const EDITOR_FONT_DEFAULT = 14;
 
 const VALID_FILENAME = /^[A-Za-z0-9._\-\u0400-\u04FF]+$/;
 const encoder = typeof TextEncoder !== "undefined"
@@ -97,7 +101,8 @@ const state = {
   settings: {
     tabSize: CONFIG.TAB_SIZE,
     wordWrap: CONFIG.WORD_WRAP,
-    turtleSpeed: "ultra"
+    turtleSpeed: "ultra",
+    editorFontSize: EDITOR_FONT_DEFAULT
   },
   worker: null,
   workerReady: false,
@@ -155,6 +160,8 @@ const els = {
   resetBtn: document.getElementById("reset-btn"),
   tabSizeBtn: document.getElementById("tab-size-btn"),
   wrapBtn: document.getElementById("wrap-btn"),
+  fontDecBtn: document.getElementById("font-dec-btn"),
+  fontIncBtn: document.getElementById("font-inc-btn"),
   turtleSpeedRange: document.getElementById("turtle-speed"),
   turtleSpeedLabel: document.getElementById("turtle-speed-label"),
   sidebar: document.getElementById("sidebar"),
@@ -169,6 +176,7 @@ const els = {
   lineNumbers: document.getElementById("line-numbers"),
   editorHighlight: document.getElementById("editor-highlight"),
   editor: document.getElementById("editor"),
+  editorWrap: document.querySelector(".editor-wrap"),
   importInput: document.getElementById("import-input"),
   consoleOutput: document.getElementById("console-output"),
   consoleInput: document.getElementById("console-input"),
@@ -425,6 +433,12 @@ function bindUi() {
   els.resetBtn.addEventListener("click", resetSnapshot);
   els.tabSizeBtn.addEventListener("click", toggleTabSize);
   els.wrapBtn.addEventListener("click", toggleWrap);
+  if (els.fontDecBtn) {
+    els.fontDecBtn.addEventListener("click", () => changeEditorFontSize(-EDITOR_FONT_STEP));
+  }
+  if (els.fontIncBtn) {
+    els.fontIncBtn.addEventListener("click", () => changeEditorFontSize(EDITOR_FONT_STEP));
+  }
   if (els.turtleSpeedRange) {
     els.turtleSpeedRange.addEventListener("input", onTurtleSpeedInput);
   }
@@ -1428,6 +1442,24 @@ function toggleWrap() {
   applyEditorSettings();
 }
 
+function clampEditorFontSize(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return EDITOR_FONT_DEFAULT;
+  }
+  return Math.max(EDITOR_FONT_MIN, Math.min(EDITOR_FONT_MAX, Math.round(numeric)));
+}
+
+function changeEditorFontSize(delta) {
+  const next = clampEditorFontSize((state.settings.editorFontSize || EDITOR_FONT_DEFAULT) + delta);
+  if (next === state.settings.editorFontSize) {
+    return;
+  }
+  state.settings.editorFontSize = next;
+  saveSettings();
+  applyEditorSettings();
+}
+
 function getTurtleSpeedPreset() {
   const current = state.settings.turtleSpeed;
   return TURTLE_SPEED_PRESETS.find((preset) => preset.key === current) || TURTLE_SPEED_PRESETS[0];
@@ -1454,6 +1486,11 @@ function onTurtleSpeedInput() {
 }
 
 function applyEditorSettings() {
+  const fontSize = clampEditorFontSize(state.settings.editorFontSize);
+  state.settings.editorFontSize = fontSize;
+  if (els.editorWrap) {
+    els.editorWrap.style.setProperty("--code-font-size", `${fontSize}px`);
+  }
   els.editor.style.tabSize = state.settings.tabSize;
   els.editor.wrap = state.settings.wordWrap ? "soft" : "off";
   els.editor.style.whiteSpace = state.settings.wordWrap ? "pre-wrap" : "pre";
@@ -1473,7 +1510,14 @@ function applyEditorSettings() {
     els.editorHighlight.style.overflowWrap = state.settings.wordWrap ? "break-word" : "normal";
     els.editorHighlight.style.wordBreak = state.settings.wordWrap ? "break-word" : "normal";
   }
+  if (els.fontDecBtn) {
+    els.fontDecBtn.disabled = fontSize <= EDITOR_FONT_MIN;
+  }
+  if (els.fontIncBtn) {
+    els.fontIncBtn.disabled = fontSize >= EDITOR_FONT_MAX;
+  }
   refreshEditorDecorations();
+  syncEditorScroll();
 }
 
 function loadSettings() {
@@ -1489,6 +1533,7 @@ function loadSettings() {
   if (!TURTLE_SPEED_PRESETS.some((preset) => preset.key === state.settings.turtleSpeed)) {
     state.settings.turtleSpeed = "ultra";
   }
+  state.settings.editorFontSize = clampEditorFontSize(state.settings.editorFontSize);
   applyEditorSettings();
 }
 

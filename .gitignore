@@ -3,6 +3,8 @@
 
 # Development and legacy files
 archive/
+!assets/archive/
+!assets/archive/editor-syntax-preset-legacy.css
 SHAPES_DEBUG.md
 
 node_modules/

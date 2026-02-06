@@ -76,6 +76,28 @@ async function getEditorSyncMetrics(page, { scrollToBottom = true } = {}) {
   }, { scrollToBottom });
 }
 
+async function getEditorFontMetrics(page) {
+  return page.evaluate(() => {
+    const editor = document.querySelector("#editor");
+    const highlight = document.querySelector("#editor-highlight");
+    const numbers = document.querySelector("#line-numbers");
+    if (!editor || !highlight || !numbers) {
+      return null;
+    }
+    const editorStyle = getComputedStyle(editor);
+    const highlightStyle = getComputedStyle(highlight);
+    const numbersStyle = getComputedStyle(numbers);
+    return {
+      editorFontSize: Number.parseFloat(editorStyle.fontSize),
+      highlightFontSize: Number.parseFloat(highlightStyle.fontSize),
+      numbersFontSize: Number.parseFloat(numbersStyle.fontSize),
+      editorLineHeight: editorStyle.lineHeight,
+      highlightLineHeight: highlightStyle.lineHeight,
+      numbersLineHeight: numbersStyle.lineHeight
+    };
+  });
+}
+
 test.describe.configure({ mode: "serial" });
 
 test("stdin works via console input", async ({ page }) => {
@@ -118,6 +140,70 @@ test("line numbers match editor metrics", async ({ page }) => {
   expect(metrics.numberLines).toBe(metrics.lineCount);
   expect(metrics.numbersFontSize).toBe(metrics.editorFontSize);
   expect(metrics.numbersLineHeight).toBe(metrics.editorLineHeight);
+});
+
+test("editor font controls change font size and keep layers aligned", async ({ page }) => {
+  await openProject(page, `font-controls-${Date.now()}`);
+  await expect(page.locator("#font-dec-btn")).toBeVisible();
+  await expect(page.locator("#font-inc-btn")).toBeVisible();
+  const base = await getEditorFontMetrics(page);
+  expect(base).not.toBeNull();
+
+  await page.click("#font-inc-btn");
+  const afterInc = await getEditorFontMetrics(page);
+  expect(afterInc.editorFontSize).toBe(base.editorFontSize + 1);
+  expect(afterInc.highlightFontSize).toBe(afterInc.editorFontSize);
+  expect(afterInc.numbersFontSize).toBe(afterInc.editorFontSize);
+  expect(afterInc.highlightLineHeight).toBe(afterInc.editorLineHeight);
+  expect(afterInc.numbersLineHeight).toBe(afterInc.editorLineHeight);
+
+  await page.click("#font-dec-btn");
+  const afterDec = await getEditorFontMetrics(page);
+  expect(afterDec.editorFontSize).toBe(base.editorFontSize);
+  expect(afterDec.highlightFontSize).toBe(afterDec.editorFontSize);
+  expect(afterDec.numbersFontSize).toBe(afterDec.editorFontSize);
+
+  const sync = await getEditorSyncMetrics(page);
+  expect(sync.highlightScrollTop).toBe(sync.editorScrollTop);
+  expect(sync.numbersScrollTop).toBe(sync.editorScrollTop);
+  expect(sync.highlightScrollLeft).toBe(sync.editorScrollLeft);
+});
+
+test("editor font size persists after reload", async ({ page }) => {
+  await openProject(page, `font-persist-${Date.now()}`);
+  const base = await getEditorFontMetrics(page);
+  await page.click("#font-inc-btn");
+  await page.reload();
+  await page.waitForSelector("#editor", { state: "visible" });
+  const afterReload = await getEditorFontMetrics(page);
+  expect(afterReload.editorFontSize).toBe(base.editorFontSize + 1);
+  expect(afterReload.highlightFontSize).toBe(afterReload.editorFontSize);
+  expect(afterReload.numbersFontSize).toBe(afterReload.editorFontSize);
+});
+
+test("editor font controls respect bounds", async ({ page }) => {
+  await openProject(page, `font-bounds-${Date.now()}`);
+  for (let i = 0; i < 40; i += 1) {
+    const isDisabled = await page.locator("#font-dec-btn").isDisabled();
+    if (isDisabled) {
+      break;
+    }
+    await page.click("#font-dec-btn");
+  }
+  let metrics = await getEditorFontMetrics(page);
+  expect(metrics.editorFontSize).toBe(12);
+  await expect(page.locator("#font-dec-btn")).toBeDisabled();
+
+  for (let i = 0; i < 40; i += 1) {
+    const isDisabled = await page.locator("#font-inc-btn").isDisabled();
+    if (isDisabled) {
+      break;
+    }
+    await page.click("#font-inc-btn");
+  }
+  metrics = await getEditorFontMetrics(page);
+  expect(metrics.editorFontSize).toBe(20);
+  await expect(page.locator("#font-inc-btn")).toBeDisabled();
 });
 
 test("cursor stays aligned on long content", async ({ page }) => {
