@@ -6,10 +6,36 @@ async function openProject(page, id) {
   await page.waitForFunction(() => document.querySelector("#guard")?.classList.contains("hidden"), { timeout: 90000 });
 }
 
+function base64UrlEncodeUtf8(text) {
+  return Buffer.from(text, "utf8")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+async function openSnapshot(page, snapshot, shareId = `share-${Date.now()}`) {
+  const payloadJson = JSON.stringify(snapshot);
+  const payload = `u.${base64UrlEncodeUtf8(payloadJson)}`;
+  await page.goto(`/#/s/${shareId}?p=${payload}`);
+  await page.waitForSelector("#editor", { state: "visible" });
+  await page.waitForFunction(() => document.querySelector("#guard")?.classList.contains("hidden"), { timeout: 90000 });
+}
+
 async function runCode(page, code) {
   await page.fill("#editor", code);
   await page.click("#run-btn");
   await page.waitForTimeout(500);
+}
+
+async function runCodeExpectError(page, code, pattern) {
+  await page.fill("#editor", code);
+  await page.click("#run-btn");
+  await expect(page.locator("#run-status")).toHaveText("Ошибка", { timeout: 15000 });
+  if (pattern) {
+    await expect(page.locator("#console-output")).toContainText(pattern);
+  }
+  await expect(page.locator("#console-output .console-error")).toHaveCount(1);
 }
 
 test.describe.configure({ mode: "serial" });
@@ -100,4 +126,112 @@ test("turtle shape changes canvas output", async ({ page }) => {
     return hash;
   });
   expect(circleHash).not.toBe(classicHash);
+});
+
+test("remix from shared snapshot creates regular project via modal", async ({ page }) => {
+  const baseline = 'print("base")\n';
+  const draft = 'print("draft change")\n';
+  await openSnapshot(page, {
+    title: "Shared lesson",
+    files: [{ name: "main.py", content: baseline }],
+    lastActiveFile: "main.py"
+  });
+
+  await expect(page.locator("#project-mode")).toHaveText("Снимок");
+  await expect(page.locator("#remix-btn")).toBeVisible();
+  await expect(page.locator("#reset-btn")).toBeVisible();
+
+  await page.fill("#editor", draft);
+  await page.click("#remix-btn");
+  await expect(page.locator("#modal .modal-input")).toBeVisible();
+  await expect(page.locator("#modal .modal-input")).toHaveValue("Shared lesson");
+  await page.fill("#modal .modal-input", "Remixed lesson");
+  await page.click('#modal [data-action="confirm"]');
+
+  await page.waitForFunction(() => window.location.hash.startsWith("#/p/"));
+  await expect(page.locator("#project-mode")).toHaveText("Проект");
+  await expect(page.locator("#editor")).toHaveValue(draft);
+  await expect(page.locator("#project-title")).toHaveText("Remixed lesson");
+});
+
+test("reset snapshot restores baseline with confirmation", async ({ page }) => {
+  const baseline = 'print("original")\n';
+  const changed = 'print("edited")\n';
+  await openSnapshot(page, {
+    title: "Reset source",
+    files: [{ name: "main.py", content: baseline }],
+    lastActiveFile: "main.py"
+  });
+
+  await page.fill("#editor", changed);
+  await expect(page.locator("#editor")).toHaveValue(changed);
+
+  await page.click("#reset-btn");
+  await expect(page.locator("#modal")).toBeVisible();
+  await page.click('#modal [data-action="confirm"]');
+
+  await expect(page.locator("#project-mode")).toHaveText("Снимок");
+  await expect(page.locator("#editor")).toHaveValue(baseline);
+});
+
+test("remix cancel keeps snapshot and does not navigate", async ({ page }) => {
+  const changed = 'print("keep draft")\n';
+  await openSnapshot(page, {
+    title: "Cancel source",
+    files: [{ name: "main.py", content: 'print("start")\n' }],
+    lastActiveFile: "main.py"
+  });
+
+  await page.fill("#editor", changed);
+  await page.click("#remix-btn");
+  await expect(page.locator("#modal")).toBeVisible();
+  await page.click('#modal [data-action="cancel"]');
+
+  await expect(page).toHaveURL(/#\/s\//);
+  await expect(page.locator("#project-mode")).toHaveText("Снимок");
+  await expect(page.locator("#editor")).toHaveValue(changed);
+});
+
+test.describe("negative scenarios", () => {
+  test("python syntax error is reported in console", async ({ page }) => {
+    await openProject(page, `neg-syntax-${Date.now()}`);
+    await runCodeExpectError(page, "def broken(:\n  pass\n", "SyntaxError");
+  });
+
+  test("python NameError is reported in console", async ({ page }) => {
+    await openProject(page, `neg-name-${Date.now()}`);
+    await runCodeExpectError(page, "print(undefined_name)\n", "NameError");
+  });
+
+  test("python ZeroDivisionError is reported in console", async ({ page }) => {
+    await openProject(page, `neg-zero-${Date.now()}`);
+    await runCodeExpectError(page, "print(1/0)\n", "ZeroDivisionError");
+  });
+
+  test("python import error for missing module is reported", async ({ page }) => {
+    await openProject(page, `neg-import-${Date.now()}`);
+    await runCodeExpectError(page, "import definitely_missing_module_xyz\n", /ImportError|ModuleNotFoundError|No module named/i);
+  });
+
+  test("python explicit raise ValueError is reported", async ({ page }) => {
+    await openProject(page, `neg-raise-${Date.now()}`);
+    await runCodeExpectError(page, 'raise ValueError("boom")\n', "ValueError");
+  });
+
+  test("python assertion failure is reported", async ({ page }) => {
+    await openProject(page, `neg-assert-${Date.now()}`);
+    await runCodeExpectError(page, 'assert False, "assertion broke"\n', "AssertionError");
+  });
+
+  test("snapshot route without payload redirects to landing", async ({ page }) => {
+    await page.goto("/#/s/no-payload");
+    await page.waitForSelector("#view-landing:not(.hidden)", { timeout: 15000 });
+    await expect(page).toHaveURL(/#\/$/);
+  });
+
+  test("snapshot route with invalid payload redirects to landing", async ({ page }) => {
+    await page.goto("/#/s/bad-payload?p=u.not-valid-base64-***");
+    await page.waitForSelector("#view-landing:not(.hidden)", { timeout: 15000 });
+    await expect(page).toHaveURL(/#\/$/);
+  });
 });
