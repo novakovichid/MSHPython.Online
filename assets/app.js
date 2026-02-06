@@ -112,9 +112,11 @@ const state = {
   lastStdinRequestMode: null,
   runTimeout: null,
   hardStopTimer: null,
+  lastRunSource: "",
   outputBytes: 0,
   saveTimer: null,
   draftTimer: null,
+  editorResizeTimer: null,
   embed: {
     active: false,
     display: "side",
@@ -436,6 +438,7 @@ function bindUi() {
   els.editor.addEventListener("input", onEditorInput);
   els.editor.addEventListener("keydown", onEditorKeydown);
   els.editor.addEventListener("scroll", syncEditorScroll);
+  window.addEventListener("resize", scheduleEditorResizeSync);
 
   els.consoleSend.addEventListener("click", submitConsoleInput);
   els.consoleInput.addEventListener("keydown", (event) => {
@@ -475,6 +478,17 @@ function bindUi() {
   }
   document.addEventListener("keydown", onTurtleKeyDown);
   document.addEventListener("keyup", onTurtleKeyUp);
+}
+
+function scheduleEditorResizeSync() {
+  if (state.editorResizeTimer) {
+    clearTimeout(state.editorResizeTimer);
+  }
+  state.editorResizeTimer = setTimeout(() => {
+    state.editorResizeTimer = null;
+    refreshEditorDecorations();
+    syncEditorScroll();
+  }, 80);
 }
 
 async function registerServiceWorker() {
@@ -892,6 +906,7 @@ function updateEditorContent() {
   els.editor.value = file ? file.content : "";
   els.editor.focus();
   refreshEditorDecorations();
+  syncEditorScroll();
 }
 
 function onEditorInput() {
@@ -909,6 +924,7 @@ function onEditorInput() {
     updateDraftFile(state.activeFile, content);
   }
   refreshEditorDecorations();
+  syncEditorScroll();
 }
 
 function onEditorKeydown(event) {
@@ -1440,6 +1456,9 @@ function onTurtleSpeedInput() {
 function applyEditorSettings() {
   els.editor.style.tabSize = state.settings.tabSize;
   els.editor.wrap = state.settings.wordWrap ? "soft" : "off";
+  els.editor.style.whiteSpace = state.settings.wordWrap ? "pre-wrap" : "pre";
+  els.editor.style.overflowWrap = state.settings.wordWrap ? "break-word" : "normal";
+  els.editor.style.wordBreak = state.settings.wordWrap ? "break-word" : "normal";
   els.tabSizeBtn.textContent = `Таб: ${state.settings.tabSize}`;
   els.wrapBtn.textContent = `Перенос: ${state.settings.wordWrap ? "Вкл" : "Выкл"}`;
   if (els.turtleSpeedLabel) {
@@ -1451,6 +1470,8 @@ function applyEditorSettings() {
   if (els.editorHighlight) {
     els.editorHighlight.style.tabSize = state.settings.tabSize;
     els.editorHighlight.style.whiteSpace = state.settings.wordWrap ? "pre-wrap" : "pre";
+    els.editorHighlight.style.overflowWrap = state.settings.wordWrap ? "break-word" : "normal";
+    els.editorHighlight.style.wordBreak = state.settings.wordWrap ? "break-word" : "normal";
   }
   refreshEditorDecorations();
 }
@@ -2571,6 +2592,84 @@ function handleWorkerFailure(event) {
   showGuard(true);
 }
 
+function lineOfIndex(source, index) {
+  const code = String(source || "");
+  const safeIndex = Math.max(0, Math.min(code.length, index));
+  let line = 1;
+  for (let i = 0; i < safeIndex; i += 1) {
+    if (code[i] === "\n") {
+      line += 1;
+    }
+  }
+  return line;
+}
+
+function detectUnclosedDelimiterLine(source) {
+  const code = String(source || "");
+  const stack = [];
+  let quote = null;
+  let escaped = false;
+  let comment = false;
+  for (let i = 0; i < code.length; i += 1) {
+    const ch = code[i];
+    if (comment) {
+      if (ch === "\n") {
+        comment = false;
+      }
+      continue;
+    }
+    if (quote) {
+      if (!escaped && ch === quote) {
+        quote = null;
+      }
+      escaped = ch === "\\" && !escaped;
+      continue;
+    }
+    if (ch === "#") {
+      comment = true;
+      continue;
+    }
+    if (ch === "'" || ch === "\"") {
+      quote = ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === "(" || ch === "[" || ch === "{") {
+      stack.push({ ch, line: lineOfIndex(code, i) });
+      continue;
+    }
+    if (ch === ")" || ch === "]" || ch === "}") {
+      const top = stack[stack.length - 1];
+      if (!top) {
+        continue;
+      }
+      const matches = (top.ch === "(" && ch === ")")
+        || (top.ch === "[" && ch === "]")
+        || (top.ch === "{" && ch === "}");
+      if (matches) {
+        stack.pop();
+      }
+    }
+  }
+  return stack.length ? stack[stack.length - 1].line : null;
+}
+
+function normalizeEofLineMessage(text, source) {
+  const raw = String(text || "");
+  const match = raw.match(/EOF in multi-line statement on line\s+(\d+)/i);
+  if (!match) {
+    return raw;
+  }
+  const unclosedLine = detectUnclosedDelimiterLine(source);
+  if (!Number.isFinite(unclosedLine) || unclosedLine < 1) {
+    return raw;
+  }
+  return raw.replace(
+    /EOF in multi-line statement on line\s+\d+/i,
+    `EOF in multi-line statement on line ${unclosedLine}`
+  );
+}
+
 function handleWorkerMessage(message) {
   if (message.type === "ready") {
     state.workerReady = true;
@@ -2583,8 +2682,9 @@ function handleWorkerMessage(message) {
     return;
   }
   if (message.type === "stderr") {
-    appendConsole(message.data, true);
-    if (state.runStatus === "running" && isRuntimeErrorText(message.data)) {
+    const normalizedErr = normalizeEofLineMessage(message.data, state.lastRunSource);
+    appendConsole(normalizedErr, true);
+    if (state.runStatus === "running" && isRuntimeErrorText(normalizedErr)) {
       updateRunStatus("error");
       enableConsoleInput(false);
       els.stopBtn.disabled = true;
@@ -2647,6 +2747,25 @@ function getActiveTabName() {
   return tab ? tab.textContent : null;
 }
 
+function normalizeSourceLineEndings(text) {
+  return String(text ?? "").replace(/\r\n?/g, "\n");
+}
+
+function sanitizeRuntimeSource(text) {
+  const normalized = normalizeSourceLineEndings(text);
+  let code = normalized;
+  code = code.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, " ");
+  code = code.replace(/[\u200B\u200C\u200D\u2060\uFEFF]/g, "");
+  return code;
+}
+
+function prepareFilesForRuntime(files) {
+  return (files || []).map((file) => ({
+    ...file,
+    content: sanitizeRuntimeSource(file.content)
+  }));
+}
+
 async function runActiveFile() {
   if (state.runtimeBlocked) {
     showGuard(true);
@@ -2669,7 +2788,9 @@ async function runActiveFile() {
   state.stdinQueue = [];
   state.stdinWaiting = false;
 
-  const files = getCurrentFiles();
+  const files = prepareFilesForRuntime(getCurrentFiles());
+  const mainFile = files.find((f) => f && f.name === entryName);
+  state.lastRunSource = mainFile ? String(mainFile.content || "") : "";
   const assets = state.mode === "project" ? await loadAssets() : [];
   setRuntimeAssets(assets);
 

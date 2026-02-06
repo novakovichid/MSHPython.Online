@@ -108,9 +108,11 @@ const state = {
   runTimeout: null,
   turtleVisible: false,
   turtleUsedLastRun: false,
+  lastRunSource: "",
   outputBytes: 0,
   saveTimer: null,
   draftTimer: null,
+  editorResizeTimer: null,
   embed: {
     active: false,
     display: "side",
@@ -393,6 +395,7 @@ function bindUi() {
   els.editor.addEventListener("input", onEditorInput);
   els.editor.addEventListener("keydown", onEditorKeydown);
   els.editor.addEventListener("scroll", syncEditorScroll);
+  window.addEventListener("resize", scheduleEditorResizeSync);
 
   els.consoleSend.addEventListener("click", submitConsoleInput);
   els.consoleInput.addEventListener("keydown", (event) => {
@@ -439,6 +442,17 @@ function bindUi() {
       els.turtleCanvas.focus();
     }
   });
+}
+
+function scheduleEditorResizeSync() {
+  if (state.editorResizeTimer) {
+    clearTimeout(state.editorResizeTimer);
+  }
+  state.editorResizeTimer = setTimeout(() => {
+    state.editorResizeTimer = null;
+    refreshEditorDecorations();
+    syncEditorScroll();
+  }, 80);
 }
 
 function startHeroTyping() {
@@ -980,6 +994,7 @@ function updateEditorContent() {
   els.editor.value = file ? file.content : "";
   els.editor.focus();
   refreshEditorDecorations();
+  syncEditorScroll();
 }
 
 function onEditorInput() {
@@ -997,6 +1012,7 @@ function onEditorInput() {
     updateDraftFile(state.activeFile, content);
   }
   refreshEditorDecorations();
+  syncEditorScroll();
 }
 
 function onEditorKeydown(event) {
@@ -1733,6 +1749,9 @@ function onTurtleSpeedInput() {
 function applyEditorSettings() {
   els.editor.style.tabSize = state.settings.tabSize;
   els.editor.wrap = state.settings.wordWrap ? "soft" : "off";
+  els.editor.style.whiteSpace = state.settings.wordWrap ? "pre-wrap" : "pre";
+  els.editor.style.overflowWrap = state.settings.wordWrap ? "break-word" : "normal";
+  els.editor.style.wordBreak = state.settings.wordWrap ? "break-word" : "normal";
   els.tabSizeBtn.textContent = `Таб: ${state.settings.tabSize}`;
   els.wrapBtn.textContent = `Перенос: ${state.settings.wordWrap ? "Вкл" : "Выкл"}`;
   if (els.turtleSpeedLabel) {
@@ -1744,6 +1763,8 @@ function applyEditorSettings() {
   if (els.editorHighlight) {
     els.editorHighlight.style.tabSize = state.settings.tabSize;
     els.editorHighlight.style.whiteSpace = state.settings.wordWrap ? "pre-wrap" : "pre";
+    els.editorHighlight.style.overflowWrap = state.settings.wordWrap ? "break-word" : "normal";
+    els.editorHighlight.style.wordBreak = state.settings.wordWrap ? "break-word" : "normal";
   }
   refreshEditorDecorations();
 }
@@ -2885,22 +2906,128 @@ function skulptInput(prompt) {
   });
 }
 
-function formatSkulptError(error) {
+function lineOfIndex(source, index) {
+  const safeIndex = Math.max(0, Math.min(String(source || "").length, index));
+  let line = 1;
+  for (let i = 0; i < safeIndex; i += 1) {
+    if (source[i] === "\n") {
+      line += 1;
+    }
+  }
+  return line;
+}
+
+function detectUnclosedDelimiterLine(source) {
+  const code = String(source || "");
+  const stack = [];
+  let quote = null;
+  let escaped = false;
+  let comment = false;
+  for (let i = 0; i < code.length; i += 1) {
+    const ch = code[i];
+    if (comment) {
+      if (ch === "\n") {
+        comment = false;
+      }
+      continue;
+    }
+    if (quote) {
+      if (!escaped && ch === quote) {
+        quote = null;
+      }
+      escaped = ch === "\\" && !escaped;
+      continue;
+    }
+    if (ch === "#") {
+      comment = true;
+      continue;
+    }
+    if (ch === "'" || ch === "\"") {
+      quote = ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === "(" || ch === "[" || ch === "{") {
+      stack.push({ ch, line: lineOfIndex(code, i) });
+      continue;
+    }
+    if (ch === ")" || ch === "]" || ch === "}") {
+      const top = stack[stack.length - 1];
+      if (!top) {
+        continue;
+      }
+      const matches = (top.ch === "(" && ch === ")")
+        || (top.ch === "[" && ch === "]")
+        || (top.ch === "{" && ch === "}");
+      if (matches) {
+        stack.pop();
+      }
+    }
+  }
+  return stack.length ? stack[stack.length - 1].line : null;
+}
+
+function normalizeEofLineMessage(text, source) {
+  const match = String(text || "").match(/EOF in multi-line statement on line\s+(\d+)/i);
+  if (!match) {
+    return String(text || "");
+  }
+  const unclosedLine = detectUnclosedDelimiterLine(source);
+  if (!Number.isFinite(unclosedLine) || unclosedLine < 1) {
+    return String(text || "");
+  }
+  return String(text || "").replace(
+    /EOF in multi-line statement on line\s+\d+/i,
+    `EOF in multi-line statement on line ${unclosedLine}`
+  );
+}
+
+function formatSkulptError(error, source = "") {
   if (!error) {
     return "Unknown error";
   }
   try {
     const baseException = Sk && Sk.builtin && Sk.builtin.BaseException;
     if (baseException && error instanceof baseException) {
-      return error.toString();
+      return normalizeEofLineMessage(error.toString(), source);
     }
   } catch (e) {
     // fall through to generic formatting
   }
   if (error.stack) {
-    return error.stack;
+    return normalizeEofLineMessage(error.stack, source);
   }
-  return String(error);
+  return normalizeEofLineMessage(String(error), source);
+}
+
+function normalizeSourceLineEndings(text) {
+  return String(text ?? "").replace(/\r\n?/g, "\n");
+}
+
+function sanitizeRuntimeSource(text) {
+  const normalized = normalizeSourceLineEndings(text);
+  const controlChars = normalized.match(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g) || [];
+  const invisibleChars = normalized.match(/[\u200B\u200C\u200D\u2060\uFEFF]/g) || [];
+  let code = normalized;
+  if (controlChars.length) {
+    code = code.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, " ");
+  }
+  if (invisibleChars.length) {
+    code = code.replace(/[\u200B\u200C\u200D\u2060\uFEFF]/g, "");
+  }
+  return {
+    code,
+    changed: code !== String(text ?? ""),
+    controlCharsRemoved: controlChars.length,
+    invisibleCharsRemoved: invisibleChars.length
+  };
+}
+
+function logRuntimeSourceDiagnostics(meta) {
+  if (!meta || !meta.changed) {
+    return;
+  }
+  console.warn("[runtime-source-normalized]", meta);
 }
 
 function initSkulpt() {
@@ -3027,7 +3154,8 @@ function buildSkulptFileMap(files) {
   const map = new Map();
   files.forEach((file) => {
     const name = String(file.name || "");
-    map.set(`/project/${name}`, String(file.content ?? ""));
+    const prepared = sanitizeRuntimeSource(file.content);
+    map.set(`/project/${name}`, prepared.code);
   });
   return map;
 }
@@ -3589,12 +3717,20 @@ async function runActiveFile() {
   try {
     configureSkulptRuntime(files, assets);
   } catch (error) {
-    appendConsole(`\n${formatSkulptError(error)}\n`, true);
+    appendConsole(`\n${formatSkulptError(error, state.lastRunSource)}\n`, true);
     hardStop("error");
     return;
   }
   const runToken = state.runToken + 1;
   state.runToken = runToken;
+  const runtimeMain = sanitizeRuntimeSource(file.content);
+  state.lastRunSource = runtimeMain.code;
+  logRuntimeSourceDiagnostics({
+    entry: entryName,
+    controlCharsRemoved: runtimeMain.controlCharsRemoved,
+    invisibleCharsRemoved: runtimeMain.invisibleCharsRemoved,
+    changed: runtimeMain.changed
+  });
   els.stopBtn.disabled = false;
   enableConsoleInput(true);
 
@@ -3626,7 +3762,7 @@ async function runActiveFile() {
       }
     }
     await Sk.misceval.asyncToPromise(() =>
-      Sk.importMainWithBody("__main__", false, String(file.content || ""), true)
+      Sk.importMainWithBody("__main__", false, runtimeMain.code, true)
     );
     if (state.runToken !== runToken) {
       return;
@@ -3636,7 +3772,7 @@ async function runActiveFile() {
     if (state.runToken !== runToken) {
       return;
     }
-    appendConsole(`\n${formatSkulptError(error)}\n`, true);
+    appendConsole(`\n${formatSkulptError(error, state.lastRunSource)}\n`, true);
     hardStop("error");
   } finally {
     if (state.runToken === runToken) {

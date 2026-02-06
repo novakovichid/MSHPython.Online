@@ -279,7 +279,11 @@ function clearDir(path) {
 function writeFiles(files) {
     const FS = pyodide.FS;
     files.forEach((file) => {
-        FS.writeFile(`/project/${file.name}`, file.content || "", { encoding: "utf8" });
+        const normalized = String(file.content || "")
+            .replace(/\r\n?/g, "\n")
+            .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, " ")
+            .replace(/[\u200B\u200C\u200D\u2060\uFEFF]/g, "");
+        FS.writeFile(`/project/${file.name}`, normalized, { encoding: "utf8" });
     });
 }
 

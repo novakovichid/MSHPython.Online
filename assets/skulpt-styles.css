@@ -601,7 +601,9 @@ body {
   font-size: inherit;
   line-height: inherit;
   color: var(--text);
-  white-space: pre-wrap;
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
   overflow: auto;
   pointer-events: none;
   scrollbar-width: none;
@@ -614,7 +616,7 @@ body {
 
 .editor-highlight .token.keyword {
   color: #1c6bff;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .editor-highlight .token.string {
@@ -699,6 +701,9 @@ body {
   font-size: inherit;
   line-height: inherit;
   padding: 14px 16px;
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
   resize: none;
   tab-size: 4;
   z-index: 1;
