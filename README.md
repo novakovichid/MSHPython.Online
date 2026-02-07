@@ -119,7 +119,7 @@ npx playwright test tests/ide.spec.js --grep "remix|snapshot"
 - `assets/skulpt-styles.css` - основные стили интерфейса.
 - `assets/archive/` - архив устаревших/неактуальных артефактов (без подключения в runtime).
 - `assets/utils/*.js` - утилиты.
-- `assets/worker.js` - worker-часть runtime.
+- `assets/vendor/skulpt/` - локальный runtime Skulpt.
 - `tests/` - e2e и unit тесты.
 
 ## Ограничения

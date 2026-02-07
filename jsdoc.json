@@ -1,8 +1,7 @@
 {
     "source": {
         "include": [
-            "assets/skulpt-app.js",
-            "assets/worker.js"
+            "assets/skulpt-app.js"
         ]
     },
     "opts": {

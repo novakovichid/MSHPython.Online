@@ -22,11 +22,7 @@ const required = [
   "applyResponsiveCardState",
   "runActiveFile",
   "remixSnapshot",
-  "resetSnapshot",
-  "decodeUtf8Fallback",
-  "handleStdinResponse",
-  "initializeRuntime",
-  "runCode"
+  "resetSnapshot"
 ];
 
 const missing = required.filter((name) => !documentedFunctions.has(name));
