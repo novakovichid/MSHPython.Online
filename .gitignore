@@ -16,3 +16,6 @@ coverage/
 playwright.config.cjs
 teacher_guide.md
 student_guide.md
+
+# Local AI agent context (ephemeral, machine-written)
+.agent/

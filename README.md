@@ -23,6 +23,7 @@
 
 - Пользовательское руководство (Markdown): `docs/USER_GUIDE.md`
 - Техническое руководство: `docs/TECHNICAL_GUIDE.md`
+- План системного рефакторинга: `docs/REFACTOR_PLAN.md`
 - HTML-гайды:
   - Для пользователей: `docs/user_guide/for_users.html`
   - Для преподавателей: `docs/user_guide/for_teachers.html`
@@ -97,6 +98,12 @@ E2E в песочнице (Chromium):
 
 ```bash
 npx playwright test -c playwright.sandbox.config.cjs
+```
+
+Editor regression в кросс-браузерной matrix (Chromium/Firefox/WebKit):
+
+```bash
+npx playwright test -c playwright.editor-matrix.config.cjs tests/ide.spec.js --grep "\\[editor-regression\\]"
 ```
 
 Запуск только snapshot/remix сценариев:

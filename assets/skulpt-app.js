@@ -129,6 +129,7 @@ const state = {
   saveTimer: null,
   draftTimer: null,
   editorResizeTimer: null,
+  editorScrollSyncRaf: null,
   embed: {
     active: false,
     display: "side",
@@ -188,6 +189,7 @@ const els = {
   assetInput: document.getElementById("asset-input"), // Законсервировано - см. комментарий перед onAssetUpload()
   fileTabs: document.getElementById("file-tabs"),
   lineNumbers: document.getElementById("line-numbers"),
+  lineNumbersContent: null,
   editorHighlight: document.getElementById("editor-highlight"),
   editor: document.getElementById("editor"),
   editorWrap: document.querySelector(".editor-wrap"),
@@ -437,7 +439,9 @@ function bindUi() {
 
   els.editor.addEventListener("input", onEditorInput);
   els.editor.addEventListener("keydown", onEditorKeydown);
-  els.editor.addEventListener("scroll", syncEditorScroll);
+  els.editor.addEventListener("scroll", scheduleEditorScrollSync);
+  els.editor.addEventListener("select", scheduleEditorScrollSync);
+  document.addEventListener("selectionchange", onDocumentSelectionChange);
   window.addEventListener("resize", () => {
     scheduleEditorResizeSync();
     applyResponsiveCardState();
@@ -501,8 +505,27 @@ function scheduleEditorResizeSync() {
   state.editorResizeTimer = setTimeout(() => {
     state.editorResizeTimer = null;
     refreshEditorDecorations();
-    syncEditorScroll();
+    scheduleEditorScrollSync();
   }, 80);
+}
+
+function onDocumentSelectionChange() {
+  if (document.activeElement === els.editor) {
+    scheduleEditorScrollSync();
+  }
+}
+
+function scheduleEditorScrollSync() {
+  if (state.editorScrollSyncRaf) {
+    return;
+  }
+  const raf = typeof requestAnimationFrame === "function"
+    ? requestAnimationFrame
+    : (callback) => setTimeout(callback, 16);
+  state.editorScrollSyncRaf = raf(() => {
+    state.editorScrollSyncRaf = null;
+    syncEditorScroll();
+  });
 }
 
 function isMobileViewport() {
@@ -612,8 +635,8 @@ function applyResponsiveCardState() {
   }
 
   if (mobile && state.uiCard === "editor") {
-    syncEditorScroll();
     refreshEditorDecorations();
+    scheduleEditorScrollSync();
   }
 }
 
@@ -1379,13 +1402,37 @@ function onEditorKeydown(event) {
   }
 }
 
+function ensureLineNumbersContentElement() {
+  if (els.lineNumbersContent && els.lineNumbersContent.isConnected) {
+    return els.lineNumbersContent;
+  }
+  if (!els.lineNumbers) {
+    return null;
+  }
+  const existing = els.lineNumbers.querySelector(".line-numbers-content");
+  if (existing) {
+    els.lineNumbersContent = existing;
+    return existing;
+  }
+  const content = document.createElement("div");
+  content.className = "line-numbers-content";
+  els.lineNumbers.textContent = "";
+  els.lineNumbers.appendChild(content);
+  els.lineNumbersContent = content;
+  return content;
+}
+
 function syncEditorScroll() {
-  if (!els.editorHighlight || !els.lineNumbers) {
+  if (!els.editor || !els.editorHighlight || !els.lineNumbers) {
     return;
   }
-  els.editorHighlight.scrollTop = els.editor.scrollTop;
-  els.editorHighlight.scrollLeft = els.editor.scrollLeft;
-  els.lineNumbers.scrollTop = els.editor.scrollTop;
+  const scrollTop = els.editor.scrollTop;
+  const scrollLeft = els.editor.scrollLeft;
+  els.editorHighlight.style.transform = `translate3d(${-scrollLeft}px, ${-scrollTop}px, 0)`;
+  const lineNumbersContent = ensureLineNumbersContentElement();
+  if (lineNumbersContent) {
+    lineNumbersContent.style.transform = `translate3d(0, ${-scrollTop}px, 0)`;
+  }
   updateLineHighlightPosition();
 }
 
@@ -1464,7 +1511,11 @@ function refreshEditorDecorations() {
   for (let i = 0; i < lineCount; i += 1) {
     lines[i] = String(i + 1);
   }
-  els.lineNumbers.textContent = lines.join("\n");
+  const lineNumbersContent = ensureLineNumbersContentElement();
+  if (!lineNumbersContent) {
+    return;
+  }
+  lineNumbersContent.textContent = lines.join("\n");
   syncEditorScroll();
   updateLineHighlightPosition();
 }
