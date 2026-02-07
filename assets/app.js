@@ -479,7 +479,7 @@ function bindUi() {
 
   els.editor.addEventListener("input", onEditorInput);
   els.editor.addEventListener("keydown", onEditorKeydown);
-  els.editor.addEventListener("scroll", scheduleEditorScrollSync);
+  els.editor.addEventListener("scroll", onEditorScroll);
   els.editor.addEventListener("select", scheduleEditorScrollSync);
   document.addEventListener("selectionchange", onDocumentSelectionChange);
   window.addEventListener("resize", () => {
@@ -546,6 +546,12 @@ function onDocumentSelectionChange() {
   if (document.activeElement === els.editor) {
     scheduleEditorScrollSync();
   }
+}
+
+function onEditorScroll() {
+  // Keep highlight/line numbers in lockstep with textarea scroll across engines.
+  syncEditorScroll();
+  scheduleEditorScrollSync();
 }
 
 function scheduleEditorScrollSync() {

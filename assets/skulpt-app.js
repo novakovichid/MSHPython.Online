@@ -439,7 +439,7 @@ function bindUi() {
 
   els.editor.addEventListener("input", onEditorInput);
   els.editor.addEventListener("keydown", onEditorKeydown);
-  els.editor.addEventListener("scroll", scheduleEditorScrollSync);
+  els.editor.addEventListener("scroll", onEditorScroll);
   els.editor.addEventListener("select", scheduleEditorScrollSync);
   document.addEventListener("selectionchange", onDocumentSelectionChange);
   window.addEventListener("resize", () => {
@@ -513,6 +513,13 @@ function onDocumentSelectionChange() {
   if (document.activeElement === els.editor) {
     scheduleEditorScrollSync();
   }
+}
+
+function onEditorScroll() {
+  // Apply sync immediately on native scroll events for cross-browser parity
+  // (Firefox/WebKit can dispatch wheel/scroll phases differently than Chromium).
+  syncEditorScroll();
+  scheduleEditorScrollSync();
 }
 
 function scheduleEditorScrollSync() {
