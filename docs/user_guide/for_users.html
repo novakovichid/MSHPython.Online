@@ -966,6 +966,11 @@
       margin-top: 8px;
     }
 
+    .guide-content a {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
     .toc {
       list-style: none;
       padding: 0;
@@ -1216,6 +1221,12 @@
       grid-template-columns: minmax(180px, 1fr) minmax(0, 2fr);
       gap: 16px;
       align-items: start;
+    }
+
+    .label-grid.single-flow {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
     }
 
     .label-item {
@@ -1476,6 +1487,209 @@
     }
 
     @media (max-width: 768px) {
+      html,
+      body {
+        overflow-x: hidden;
+      }
+
+      .guide-header {
+        padding: 12px 0 0;
+      }
+
+      .guide-content {
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        gap: 12px;
+        padding-left: 0;
+        padding-right: 0;
+        padding-bottom: 40px;
+      }
+
+      .guide-hero,
+      .guide-section {
+        width: 100%;
+        max-width: none;
+        padding: 14px 12px;
+        border-radius: 12px;
+      }
+
+      .guide-hero h1 {
+        font-size: clamp(22px, 6vw, 30px);
+      }
+
+      .guide-hero p,
+      .guide-note,
+      .label-item,
+      .feedback {
+        font-size: 13px;
+      }
+
+      .floating-toc {
+        right: 10px;
+        top: auto;
+        bottom: 10px;
+      }
+
+      .floating-toc-panel {
+        display: none;
+      }
+
+      .floating-toc-button {
+        min-width: 56px;
+        height: 40px;
+        border-radius: 12px;
+        font-size: 12px;
+      }
+
+      .collapsible summary {
+        padding: 12px 14px;
+        font-size: 16px;
+      }
+
+      .collapsible summary h3 {
+        font-size: 16px;
+      }
+
+      .collapsible summary h4 {
+        font-size: 15px;
+      }
+
+      .collapsible-body {
+        padding: 10px 12px 14px;
+      }
+
+      .step-card {
+        padding: 12px;
+      }
+
+      .recent-list {
+        grid-template-columns: 1fr;
+      }
+
+      .recent-actions-row {
+        width: 100%;
+        flex-wrap: wrap;
+      }
+
+      .recent-actions-row .recent-open {
+        min-width: 0;
+        flex: 1 1 auto;
+      }
+
+      .label-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .guide-console-pane,
+      .guide-turtle-pane {
+        width: 100%;
+        max-width: none;
+      }
+
+      .topbar {
+        gap: 8px;
+        padding: 10px 12px;
+      }
+
+      .topbar-left .brand-sub,
+      .project-mode,
+      .save-indicator {
+        display: none;
+      }
+
+      .brand-title {
+        font-size: 14px;
+      }
+
+      .project-title {
+        font-size: 14px;
+      }
+
+      .topbar-right {
+        width: 100%;
+      }
+
+      .topbar-right .top-actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+
+      .btn {
+        min-height: 42px;
+      }
+
+      .btn.small {
+        min-height: 40px;
+      }
+
+      .workspace,
+      .workspace.console-right,
+      .workspace.console-right.no-turtle,
+      .workspace.no-turtle {
+        display: block;
+        min-height: 0;
+        gap: 10px;
+        padding: 8px 0;
+      }
+
+      .workspace .sidebar,
+      .workspace .editor-pane,
+      .workspace .console-pane,
+      .workspace .turtle-pane {
+        width: 100%;
+        margin-bottom: 10px;
+        min-height: 320px;
+      }
+
+      .workspace .sidebar {
+        min-height: 0;
+      }
+
+      .workspace .turtle-pane {
+        min-height: 520px;
+      }
+
+      .turtle-host {
+        padding: 10px;
+        overflow: hidden;
+      }
+
+      .turtle-canvas {
+        width: min(100%, 400px);
+        height: auto;
+        aspect-ratio: 1 / 1;
+      }
+
+      .panel-actions-files {
+        grid-template-columns: 1fr;
+        justify-content: stretch;
+        width: 100%;
+      }
+
+      .panel-actions-files .btn.small {
+        width: 100%;
+        white-space: normal;
+      }
+
+      .editor-controls #guide-hotkeys-btn,
+      .editor-controls #sandbox-hotkeys-btn,
+      #guide-console-layout-toggle,
+      #sandbox-console-layout-toggle {
+        display: none;
+      }
+
+      .console-input-row {
+        flex-direction: column;
+      }
+
+      .console-input-row .btn.small {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 768px) {
       #sandbox-ide {
         padding: 0;
       }
@@ -1483,14 +1697,14 @@
       #sandbox-workspace {
         display: block;
         overflow: hidden;
-        padding: 8px;
+        padding: 0;
       }
 
       #sandbox-workspace>.sidebar,
       #sandbox-workspace>.editor-pane,
       #sandbox-workspace>.console-pane,
       #sandbox-workspace>.turtle-pane {
-        margin: 0;
+        margin: 0 0 10px;
         min-height: 430px;
       }
 
@@ -1754,7 +1968,7 @@
         </summary>
         <div class="collapsible-body">
           <p>Консоль ввода-вывода позволяет:</p>
-          <div class="label-grid">
+          <div class="label-grid single-flow">
             <div class="label-stack">
               <div class="label-item">Просматривать результаты работы функции print, а также работы самой программы
               </div>
@@ -1786,7 +2000,7 @@
           <h3>Окно Черепашки</h3>
         </summary>
         <div class="collapsible-body">
-          <div class="label-grid">
+          <div class="label-grid single-flow">
             <div class="label-stack">
               <div class="label-item">Окно Черепашки появляется в момент, когда в коде используется библиотека turtle.
                 В нём будет показан результат выполнения программы Черепашки.</div>
