@@ -47,7 +47,7 @@
 
 ## Guardrails
 
-- Ни один шаг не принимается без зелёных unit + e2e regression.
+- Ни один шаг не принимается без зелёных unit + полного `tests/ide.spec.js` в актуальном CI flow.
 - `editor-regression` обязателен как release gate.
 - Любая деградация line mapping и визуальной синхронизации считается регрессией.
 - Любой risky change сопровождается обновлением тестов и документации.
@@ -62,5 +62,8 @@
    - добавлены editor mode tests,
    - расширен `editor-regression` набор,
    - добавлен sanity-набор для legacy fallback.
-3. Linux matrix стабилен на Chromium/Firefox.
+3. CI matrix усилен до полного `tests/ide.spec.js`:
+   - Linux: `chromium` + `firefox`,
+   - macOS: `webkit`.
 4. WebKit остаётся release-gated через отдельный macOS job в CI; локально на Linux возможны инфраструктурные `WebKit internal error` при `page.goto`.
+5. Mirror-runtime выведен из активного контура и архивирован в `assets/archive/runtime-mirror/`; canonical runtime: `assets/skulpt-app.js` + `assets/skulpt-styles.css`.

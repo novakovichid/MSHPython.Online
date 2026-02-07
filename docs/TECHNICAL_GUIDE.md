@@ -39,7 +39,7 @@ npm run test:unit:coverage
 - `assets/skulpt-app.js`: Логика интерфейса и выполнения (роутер, редактор, хранилище, шеринг).
 - `assets/skulpt-styles.css`: Стили и верстка интерфейса.
 - `assets/worker.js`: Воркер для выполнения Python кода.
-- `assets/fflate.esm.js`: Резервный вариант gzip для браузеров без CompressionStream.
+- `assets/skulpt-fflate.esm.js`: Резервный вариант gzip для браузеров без CompressionStream.
 - `vendor/skulpt/skulpt-dist-master/`: Среда выполнения Skulpt и стандартная библиотека.
 - `docs/`: Документация и руководства.
 

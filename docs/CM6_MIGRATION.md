@@ -63,8 +63,8 @@ Acceptance:
 
 ## Phase 3 - Regression hardening
 
-1. Прогон полного набора `editor-regression`.
-2. Прогон matrix-проверок (Chromium/Firefox/WebKit через актуальный CI flow).
+1. Прогон полного `tests/ide.spec.js` в matrix (Chromium/Firefox/WebKit через актуальный CI flow).
+2. Отдельная проверка `[editor-regression]` как release-critical subset.
 3. Добавление missing coverage для всех обнаруженных edge-cases.
 
 Acceptance:
@@ -129,11 +129,17 @@ Acceptance:
 6. CI-структура на matrix:
    - Linux: Chromium + Firefox,
    - отдельный macOS job для WebKit.
+7. Выполнен aggressive cleanup архивных артефактов:
+   - mirror runtime перенесён в `assets/archive/runtime-mirror/`,
+   - неиспользуемые ассеты и исходники перенесены в `assets/archive/dead-assets/` и `assets/archive/logo-sources/`.
+8. CI-gate усилен до полного `tests/ide.spec.js` в matrix:
+   - Linux: `chromium` + `firefox`,
+   - macOS: `webkit`.
 
 ### In progress
 
-1. Дополнительный parity-прогон полного `tests/ide.spec.js` для CM6 default.
-2. Финальная сверка mirrored runtime (`assets/app.js`) и primary runtime (`assets/skulpt-app.js`) перед фиксацией этапа.
+1. Дополнительная стабилизация parity edge-cases по итогам полного matrix-прогона `tests/ide.spec.js`.
+2. Embed-specific parity intentionally out of scope текущего шага.
 
 ### Notes
 

@@ -44,8 +44,8 @@ jobs:
         run: npm ci
       - name: Install Playwright browser
         run: npx playwright install --with-deps ${{ matrix.browser }}
-      - name: Editor regression (matrix)
-        run: npx playwright test -c playwright.editor-matrix.config.cjs tests/ide.spec.js --project=${{ matrix.browser }} --grep "\\[editor-regression\\]"
+      - name: Full IDE spec (matrix)
+        run: npx playwright test -c playwright.editor-matrix.config.cjs tests/ide.spec.js --project=${{ matrix.browser }}
 
   e2e-editor-webkit-macos:
     needs: unit
@@ -61,8 +61,8 @@ jobs:
         run: npm ci
       - name: Install Playwright WebKit
         run: npx playwright install webkit
-      - name: Editor regression (webkit)
-        run: npx playwright test -c playwright.editor-matrix.config.cjs tests/ide.spec.js --project=webkit --grep "\\[editor-regression\\]"
+      - name: Full IDE spec (webkit)
+        run: npx playwright test -c playwright.editor-matrix.config.cjs tests/ide.spec.js --project=webkit
 
   docs:
     if: "${{ github.event_name == 'push' && !contains(github.event.head_commit.message, 'docs: auto-update API docs') }}"

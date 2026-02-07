@@ -100,10 +100,10 @@ E2E в песочнице (Chromium):
 npx playwright test -c playwright.sandbox.config.cjs
 ```
 
-Editor regression в кросс-браузерной matrix (Chromium/Firefox/WebKit):
+Полный `tests/ide.spec.js` в кросс-браузерной matrix (Chromium/Firefox/WebKit):
 
 ```bash
-npx playwright test -c playwright.editor-matrix.config.cjs tests/ide.spec.js --grep "\\[editor-regression\\]"
+npx playwright test -c playwright.editor-matrix.config.cjs tests/ide.spec.js
 ```
 
 Запуск только snapshot/remix сценариев:
@@ -117,7 +117,7 @@ npx playwright test tests/ide.spec.js --grep "remix|snapshot"
 - `index.html` - основной интерфейс.
 - `assets/skulpt-app.js` - основной frontend runtime.
 - `assets/skulpt-styles.css` - основные стили интерфейса.
-- `assets/app.js`, `assets/styles.css` - параллельная/зеркальная реализация.
+- `assets/archive/` - архив устаревших/неактуальных артефактов (без подключения в runtime).
 - `assets/utils/*.js` - утилиты.
 - `assets/worker.js` - worker-часть runtime.
 - `tests/` - e2e и unit тесты.
