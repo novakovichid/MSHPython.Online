@@ -4037,9 +4037,7 @@ async function runActiveFile() {
           Sk.importMainWithBody("__init_turtle__", false, setupCode, true)
         );
       } catch (err) {
-        if (DEBUG_ENABLED) {
-          console.warn("Turtle patch failed", err);
-        }
+        console.warn("Turtle patch failed", err);
       }
     }
     await Sk.misceval.asyncToPromise(() =>
