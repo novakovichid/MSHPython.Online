@@ -18,6 +18,16 @@ const EDITOR_FONT_MIN = 12;
 const EDITOR_FONT_MAX = 20;
 const EDITOR_FONT_STEP = 1;
 const EDITOR_FONT_DEFAULT = 14;
+const MOBILE_CARD_BREAKPOINT = "(max-width: 768px)";
+const COMPACT_INPUT_BREAKPOINT = "(max-width: 1024px)";
+const UI_CARDS = ["modules", "editor", "console", "turtle"];
+const MOBILE_ACTION_LABELS = {
+  share: "🔗",
+  export: "⬆️",
+  import: "⬇️"
+};
+const CONSOLE_INPUT_PLACEHOLDER_DESKTOP = "Введите input и нажмите Enter (Shift+Enter для новой строки)";
+const CONSOLE_INPUT_PLACEHOLDER_MOBILE = "Введите input и нажмите «Отправить»";
 
 const VALID_FILENAME = /^[A-Za-z0-9._\-\u0400-\u04FF]+$/;
 const encoder = typeof TextEncoder !== "undefined"
@@ -95,6 +105,7 @@ const IMAGE_ASSET_EXTENSIONS = new Set([
 const state = {
   db: null,
   mode: "landing",
+  uiCard: "editor",
   project: null,
   snapshot: null,
   activeFile: null,
@@ -149,6 +160,7 @@ const els = {
   projectMode: document.getElementById("project-mode"),
   topbarRight: document.querySelector(".topbar-right"),
   topActions: document.querySelector(".top-actions"),
+  restartInline: document.getElementById("restart-ide-inline"),
   saveIndicator: document.getElementById("save-indicator"),
   runBtn: document.getElementById("run-btn"),
   stopBtn: document.getElementById("stop-btn"),
@@ -164,7 +176,12 @@ const els = {
   fontIncBtn: document.getElementById("font-inc-btn"),
   turtleSpeedRange: document.getElementById("turtle-speed"),
   turtleSpeedLabel: document.getElementById("turtle-speed-label"),
+  workspace: document.querySelector(".workspace"),
   sidebar: document.getElementById("sidebar"),
+  editorPane: document.getElementById("editor-pane"),
+  consolePane: document.getElementById("console-pane"),
+  mobileNav: document.getElementById("mobile-nav"),
+  mobileNavButtons: Array.from(document.querySelectorAll("#mobile-nav .mobile-nav-btn")),
   fileList: document.getElementById("file-list"),
   assetList: document.getElementById("asset-list"),
   fileCreate: document.getElementById("file-create"),
@@ -182,6 +199,7 @@ const els = {
   consoleInput: document.getElementById("console-input"),
   consoleSend: document.getElementById("console-send"),
   runStatus: document.getElementById("run-status"),
+  turtlePane: document.getElementById("turtle-pane"),
   turtleCanvas: document.getElementById("turtle-canvas"),
   turtleClear: document.getElementById("turtle-clear")
 };
@@ -439,6 +457,14 @@ function bindUi() {
   if (els.fontIncBtn) {
     els.fontIncBtn.addEventListener("click", () => changeEditorFontSize(EDITOR_FONT_STEP));
   }
+  if (els.mobileNavButtons && els.mobileNavButtons.length) {
+    els.mobileNavButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const card = button.dataset.card;
+        setUiCard(card);
+      });
+    });
+  }
   if (els.turtleSpeedRange) {
     els.turtleSpeedRange.addEventListener("input", onTurtleSpeedInput);
   }
@@ -452,7 +478,14 @@ function bindUi() {
   els.editor.addEventListener("input", onEditorInput);
   els.editor.addEventListener("keydown", onEditorKeydown);
   els.editor.addEventListener("scroll", syncEditorScroll);
-  window.addEventListener("resize", scheduleEditorResizeSync);
+  window.addEventListener("resize", () => {
+    scheduleEditorResizeSync();
+    applyResponsiveCardState();
+  });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", applyResponsiveCardState);
+    window.visualViewport.addEventListener("scroll", applyResponsiveCardState);
+  }
 
   els.consoleSend.addEventListener("click", submitConsoleInput);
   els.consoleInput.addEventListener("keydown", (event) => {
@@ -503,6 +536,160 @@ function scheduleEditorResizeSync() {
     refreshEditorDecorations();
     syncEditorScroll();
   }, 80);
+}
+
+function isMobileViewport() {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function"
+    ? window.matchMedia(MOBILE_CARD_BREAKPOINT).matches
+    : false;
+}
+
+function isCompactViewport() {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function"
+    ? window.matchMedia(COMPACT_INPUT_BREAKPOINT).matches
+    : false;
+}
+
+function getCardElement(card) {
+  if (card === "modules") {
+    return els.sidebar;
+  }
+  if (card === "editor") {
+    return els.editorPane;
+  }
+  if (card === "console") {
+    return els.consolePane;
+  }
+  if (card === "turtle") {
+    return els.turtlePane;
+  }
+  return null;
+}
+
+function isCardAvailable(card) {
+  const element = getCardElement(card);
+  if (!element || element.classList.contains("hidden")) {
+    return false;
+  }
+  if (card === "turtle" && els.workspace && els.workspace.classList.contains("no-turtle")) {
+    return false;
+  }
+  return true;
+}
+
+function getFallbackCard(preferred) {
+  const candidates = [];
+  if (preferred && UI_CARDS.includes(preferred)) {
+    candidates.push(preferred);
+  }
+  candidates.push("editor", "console", "modules", "turtle");
+  for (const card of candidates) {
+    if (isCardAvailable(card)) {
+      return card;
+    }
+  }
+  return "editor";
+}
+
+function setUiCard(card) {
+  if (!UI_CARDS.includes(card)) {
+    return;
+  }
+  state.uiCard = card;
+  applyResponsiveCardState();
+}
+
+function applyResponsiveCardState() {
+  const mobile = isMobileViewport();
+  const compact = isCompactViewport();
+  applyMobileTopbarState(mobile);
+  applyConsoleInputPlaceholder(compact);
+  const keyboardOpen = mobile && isVirtualKeyboardOpen();
+  document.body.classList.toggle("keyboard-open", keyboardOpen);
+  if (els.mobileNav) {
+    els.mobileNav.classList.toggle("hidden", !mobile || keyboardOpen);
+  }
+  const activeCard = mobile ? getFallbackCard(state.uiCard || "editor") : null;
+  if (mobile) {
+    state.uiCard = activeCard;
+  }
+
+  UI_CARDS.forEach((card) => {
+    const element = getCardElement(card);
+    if (!element) {
+      return;
+    }
+    if (!mobile) {
+      element.classList.remove("card-hidden-mobile", "card-active");
+      return;
+    }
+    const isActive = card === activeCard;
+    element.classList.toggle("card-active", isActive);
+    element.classList.toggle("card-hidden-mobile", !isActive);
+  });
+
+  if (els.mobileNavButtons && els.mobileNavButtons.length) {
+    els.mobileNavButtons.forEach((button) => {
+      const card = button.dataset.card;
+      const available = isCardAvailable(card);
+      const active = mobile && card === state.uiCard;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+      button.disabled = !available;
+    });
+  }
+
+  if (mobile && state.uiCard === "editor") {
+    syncEditorScroll();
+    refreshEditorDecorations();
+  }
+}
+
+function isVirtualKeyboardOpen() {
+  if (typeof window === "undefined" || !window.visualViewport) {
+    return false;
+  }
+  const delta = window.innerHeight - window.visualViewport.height;
+  return delta > 140;
+}
+
+function setMobileButtonLabel(button, mobileLabel) {
+  if (!button) {
+    return;
+  }
+  if (!button.dataset.desktopLabel) {
+    button.dataset.desktopLabel = button.textContent.trim();
+  }
+  const desktopLabel = button.dataset.desktopLabel;
+  if (isMobileViewport()) {
+    button.textContent = mobileLabel;
+    button.classList.add("mobile-icon-btn");
+    button.setAttribute("aria-label", desktopLabel);
+    button.title = desktopLabel;
+  } else {
+    button.textContent = desktopLabel;
+    button.classList.remove("mobile-icon-btn");
+    button.removeAttribute("aria-label");
+    button.title = "";
+  }
+}
+
+function applyMobileTopbarState(mobile) {
+  setMobileButtonLabel(els.shareBtn, MOBILE_ACTION_LABELS.share);
+  setMobileButtonLabel(els.exportBtn, MOBILE_ACTION_LABELS.export);
+  setMobileButtonLabel(els.importBtn, MOBILE_ACTION_LABELS.import);
+  if (els.restartInline) {
+    els.restartInline.classList.toggle("hidden", !mobile);
+  }
+}
+
+function applyConsoleInputPlaceholder(compact) {
+  if (!els.consoleInput) {
+    return;
+  }
+  els.consoleInput.placeholder = compact
+    ? CONSOLE_INPUT_PLACEHOLDER_MOBILE
+    : CONSOLE_INPUT_PLACEHOLDER_DESKTOP;
 }
 
 async function registerServiceWorker() {
@@ -602,6 +789,7 @@ function resetEmbed() {
   els.editor.closest(".editor-pane").classList.remove("hidden");
   els.sidebar.classList.remove("hidden");
   els.consoleOutput.closest(".console-pane").classList.remove("hidden");
+  applyResponsiveCardState();
 }
 
 function applyEmbedSettings(query) {
@@ -620,6 +808,7 @@ function applyEmbedSettings(query) {
   els.editor.closest(".editor-pane").classList.toggle("hidden", hideEditor);
   els.sidebar.classList.toggle("hidden", hideEditor);
   els.consoleOutput.closest(".console-pane").classList.toggle("hidden", hideConsole);
+  applyResponsiveCardState();
 }
 
 async function openProject(projectId) {
@@ -808,6 +997,10 @@ function setMode(mode) {
   els.fileDuplicate.disabled = disableEdits;
   els.fileDelete.disabled = disableEdits;
   els.assetInput.disabled = disableEdits || !isProject;
+  if (isMobileViewport()) {
+    state.uiCard = "editor";
+  }
+  applyResponsiveCardState();
 }
 
 function renderProject() {
@@ -822,6 +1015,7 @@ function renderProject() {
   if (state.embed.active && state.embed.autorun) {
     setTimeout(() => runActiveFile(), 200);
   }
+  applyResponsiveCardState();
 }
 
 function renderSnapshot() {
@@ -836,6 +1030,7 @@ function renderSnapshot() {
   if (state.embed.active && state.embed.autorun) {
     setTimeout(() => runActiveFile(), 200);
   }
+  applyResponsiveCardState();
 }
 
 function renderFiles(files) {
@@ -2761,6 +2956,9 @@ function handleWorkerMessage(message) {
   }
   if (message.type === "stdin_request") {
     state.stdinWaiting = true;
+    if (isMobileViewport()) {
+      setUiCard("console");
+    }
     state.lastStdinRequestMode = message.mode || null;
     if (message.mode === "shared" || message.mode === "message") {
       state.stdinMode = message.mode;
@@ -2834,6 +3032,17 @@ async function runActiveFile() {
   state.stdinWaiting = false;
 
   const files = prepareFilesForRuntime(getCurrentFiles());
+  const usesTurtle = files.some((entry) => /\bimport\s+turtle\b|\bfrom\s+turtle\s+import\b/.test(String(entry.content || "")));
+  if (els.workspace) {
+    els.workspace.classList.toggle("no-turtle", !usesTurtle);
+  }
+  if (els.turtlePane) {
+    els.turtlePane.classList.toggle("hidden", !usesTurtle);
+  }
+  applyResponsiveCardState();
+  if (isMobileViewport()) {
+    setUiCard(usesTurtle ? "turtle" : "console");
+  }
   const mainFile = files.find((f) => f && f.name === entryName);
   state.lastRunSource = mainFile ? String(mainFile.content || "") : "";
   const assets = state.mode === "project" ? await loadAssets() : [];

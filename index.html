@@ -136,7 +136,7 @@
         </div -->
       </aside>
 
-      <section class="editor-pane">
+      <section id="editor-pane" class="editor-pane">
         <div class="editor-toolbar">
           <div class="editor-actions">
             <button id="run-btn" class="btn primary" title="Запуск (F8 или Alt+R)">Запуск main.py</button>
@@ -150,6 +150,8 @@
             <button id="font-inc-btn" class="btn ghost tiny" title="Увеличить шрифт редактора">A+</button>
             <button id="hotkeys-btn" class="btn ghost tiny">&#1043;&#1086;&#1088;&#1103;&#1095;&#1080;&#1077;
               &#1082;&#1083;&#1072;&#1074;&#1080;&#1096;&#1080;</button>
+            <button id="restart-ide-inline" class="btn ghost tiny restart-ide-inline hidden" data-action="restart-ide"
+              title="Перезапустить IDE">↻</button>
           </div>
         </div>
         <div class="tabs" id="file-tabs"></div>
@@ -162,7 +164,7 @@
         </div>
       </section>
 
-      <section class="console-pane">
+      <section id="console-pane" class="console-pane">
         <div class="panel-header">
           <div class="panel-title">Консоль</div>
           <div class="panel-actions">
@@ -179,7 +181,7 @@
         </div>
       </section>
 
-      <section class="turtle-pane hidden">
+      <section id="turtle-pane" class="turtle-pane hidden">
         <div class="panel-header turtle-header">
           <div class="panel-title">Черепаха</div>
           <div class="turtle-controls">
@@ -195,6 +197,12 @@
         </div>
       </section>
     </section>
+    <nav id="mobile-nav" class="mobile-nav hidden" aria-label="Навигация IDE">
+      <button class="mobile-nav-btn" data-card="modules" aria-controls="sidebar" aria-pressed="false">Модули</button>
+      <button class="mobile-nav-btn" data-card="editor" aria-controls="editor-pane" aria-pressed="true">Редактор</button>
+      <button class="mobile-nav-btn" data-card="console" aria-controls="console-pane" aria-pressed="false">Консоль</button>
+      <button class="mobile-nav-btn" data-card="turtle" aria-controls="turtle-pane" aria-pressed="false">Черепаха</button>
+    </nav>
     <button class="btn ghost topbar-restart restart-ide-floating restart-ide-floating-left" data-action="restart-ide"
       title="Перезапустить IDE с очисткой кеша">Перезапуск IDE</button>
   </main>

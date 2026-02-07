@@ -98,6 +98,26 @@ async function getEditorFontMetrics(page) {
   });
 }
 
+async function getVisibleIdeCards(page) {
+  return page.evaluate(() => {
+    const cards = [
+      { key: "modules", el: document.querySelector("#sidebar") },
+      { key: "editor", el: document.querySelector("#editor-pane") },
+      { key: "console", el: document.querySelector("#console-pane") },
+      { key: "turtle", el: document.querySelector("#turtle-pane") }
+    ];
+    return cards
+      .filter(({ el }) => {
+        if (!el || el.classList.contains("hidden")) {
+          return false;
+        }
+        const style = getComputedStyle(el);
+        return style.display !== "none" && style.visibility !== "hidden";
+      })
+      .map(({ key }) => key);
+  });
+}
+
 test.describe.configure({ mode: "serial" });
 
 test("stdin works via console input", async ({ page }) => {
@@ -241,6 +261,222 @@ test("cursor stays aligned after viewport shrink", async ({ page }) => {
   expect(metrics.highlightScrollTop).toBe(metrics.editorScrollTop);
   expect(metrics.numbersScrollTop).toBe(metrics.editorScrollTop);
   expect(metrics.scrollHeightDelta).toBeLessThanOrEqual(2);
+});
+
+test("tablet layout prioritizes editor/console/turtle", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await openProject(page, `tablet-layout-${Date.now()}`);
+  await runCode(page, 'import turtle\n\nturtle.shape("turtle")\n');
+  await page.waitForTimeout(300);
+  const metrics = await page.evaluate(() => {
+    const sidebar = document.querySelector("#sidebar");
+    const editor = document.querySelector("#editor-pane");
+    const turtle = document.querySelector("#turtle-pane");
+    const consolePane = document.querySelector("#console-pane");
+    const actionBtn = document.querySelector(".top-actions .btn");
+    const panelActionBtn = document.querySelector(".panel-actions .btn");
+    if (!sidebar || !editor || !turtle || !consolePane || !actionBtn || !panelActionBtn) {
+      return null;
+    }
+    const sb = sidebar.getBoundingClientRect();
+    const ed = editor.getBoundingClientRect();
+    const tt = turtle.getBoundingClientRect();
+    const cp = consolePane.getBoundingClientRect();
+    return {
+      editorWidth: ed.width,
+      sidebarWidth: sb.width,
+      turtleHeight: tt.height,
+      consoleHeight: cp.height,
+      topActionFontSize: Number.parseFloat(getComputedStyle(actionBtn).fontSize),
+      panelActionFontSize: Number.parseFloat(getComputedStyle(panelActionBtn).fontSize)
+    };
+  });
+  expect(metrics).not.toBeNull();
+  expect(metrics.editorWidth).toBeGreaterThan(metrics.sidebarWidth);
+  expect(metrics.turtleHeight).toBeGreaterThan(140);
+  expect(metrics.consoleHeight).toBeGreaterThan(120);
+  expect(metrics.topActionFontSize).toBeLessThanOrEqual(11.5);
+  expect(metrics.panelActionFontSize).toBeLessThanOrEqual(11.5);
+});
+
+test("tablet module action buttons keep readable text", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await openProject(page, `tablet-actions-${Date.now()}`);
+  const readability = await page.evaluate(() => {
+    const buttons = Array.from(document.querySelectorAll(".panel-actions-files .btn.small"));
+    if (!buttons.length) {
+      return null;
+    }
+    return buttons.map((button) => ({
+      text: button.textContent.trim(),
+      whiteSpace: getComputedStyle(button).whiteSpace,
+      textOverflow: getComputedStyle(button).textOverflow,
+      overflowX: getComputedStyle(button).overflowX
+    }));
+  });
+  expect(readability).not.toBeNull();
+  expect(readability.every((entry) => entry.text.length > 0)).toBe(true);
+  expect(readability.every((entry) => entry.whiteSpace !== "nowrap")).toBe(true);
+  expect(readability.every((entry) => entry.textOverflow !== "ellipsis")).toBe(true);
+  expect(readability.every((entry) => entry.overflowX !== "hidden")).toBe(true);
+});
+
+test("tablet hides hotkeys and uses compact console input hint", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await openProject(page, `tablet-hint-hotkeys-${Date.now()}`);
+  await expect(page.locator("#hotkeys-btn")).toBeHidden();
+  await expect(page.locator("#console-input")).toHaveAttribute(
+    "placeholder",
+    "Введите input и нажмите «Отправить»"
+  );
+});
+
+test("mobile default card is editor", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openProject(page, `mobile-default-${Date.now()}`);
+  await expect(page.locator("#mobile-nav")).toBeVisible();
+  const visibleCards = await getVisibleIdeCards(page);
+  expect(visibleCards).toEqual(["editor"]);
+  await expect(page.locator('#mobile-nav [data-card="editor"]')).toHaveAttribute("aria-pressed", "true");
+});
+
+test("mobile header is compact and uses icon actions", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openProject(page, `mobile-header-${Date.now()}`);
+  await expect(page.locator("#share-btn")).toHaveText("🔗");
+  await expect(page.locator("#export-btn")).toHaveText("⬆️");
+  await expect(page.locator("#import-btn")).toHaveText("⬇️");
+  await expect(page.locator("#restart-ide-inline")).toBeVisible();
+  await expect(page.locator(".restart-ide-floating-left")).toBeHidden();
+  const hiddenMeta = await page.evaluate(() => {
+    const mode = document.querySelector("#project-mode");
+    const save = document.querySelector("#save-indicator");
+    const rename = document.querySelector("#rename-btn");
+    if (!mode || !save || !rename) {
+      return false;
+    }
+    const hidden = (el) => getComputedStyle(el).display === "none";
+    return hidden(mode) && hidden(save) && hidden(rename);
+  });
+  expect(hiddenMeta).toBe(true);
+});
+
+test("mobile shows one card at a time with bottom nav", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openProject(page, `mobile-cards-${Date.now()}`);
+  await expect(page.locator("#mobile-nav")).toBeVisible();
+  await page.click('#mobile-nav [data-card="modules"]');
+  let visibleCards = await getVisibleIdeCards(page);
+  expect(visibleCards).toEqual(["modules"]);
+
+  await page.click('#mobile-nav [data-card="console"]');
+  visibleCards = await getVisibleIdeCards(page);
+  expect(visibleCards).toEqual(["console"]);
+
+  await page.click('#mobile-nav [data-card="editor"]');
+  visibleCards = await getVisibleIdeCards(page);
+  expect(visibleCards).toEqual(["editor"]);
+});
+
+test("mobile turtle card preserves canvas usability", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openProject(page, `mobile-turtle-${Date.now()}`);
+  await runCode(page, 'import turtle\n\nturtle.shape("classic")\n');
+  await expect(page.locator('#mobile-nav [data-card="turtle"]')).toBeEnabled();
+  await page.click('#mobile-nav [data-card="turtle"]');
+  await expect(page.locator("#turtle-pane")).toBeVisible();
+  await page.waitForFunction(() => {
+    const host = document.querySelector("#turtle-canvas");
+    const canvas = document.querySelector("#turtle-canvas canvas");
+    if (!host || !canvas) {
+      return false;
+    }
+    const rect = host.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  });
+});
+
+test("mobile run opens turtle card when turtle is used", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openProject(page, `mobile-run-turtle-${Date.now()}`);
+  await runCode(page, 'import turtle\n\nturtle.shape("classic")\n');
+  const visibleCards = await getVisibleIdeCards(page);
+  expect(visibleCards).toEqual(["turtle"]);
+});
+
+test("mobile run opens console card and input request keeps console priority", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openProject(page, `mobile-run-console-${Date.now()}`);
+  await runCode(page, 'print("ok")\n');
+  let visibleCards = await getVisibleIdeCards(page);
+  expect(visibleCards).toEqual(["console"]);
+
+  await page.click('#mobile-nav [data-card="editor"]');
+  await page.fill("#editor", 'import turtle\nname = input("name? ")\nprint(name)\n');
+  await page.click("#run-btn");
+  await expect(page.locator("#console-input")).toBeEnabled();
+  visibleCards = await getVisibleIdeCards(page);
+  expect(visibleCards).toEqual(["console"]);
+});
+
+test("mobile console hides desktop layout toggle and uses mobile input hint", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openProject(page, `mobile-console-ui-${Date.now()}`);
+  await page.click('#mobile-nav [data-card="console"]');
+  await expect(page.locator("#console-layout-toggle")).toBeHidden();
+  await expect(page.locator("#console-input")).toHaveAttribute(
+    "placeholder",
+    "Введите input и нажмите «Отправить»"
+  );
+});
+
+test("mobile modules card is full-height and uses touch-friendly buttons", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openProject(page, `mobile-modules-touch-${Date.now()}`);
+  await page.click('#mobile-nav [data-card="modules"]');
+  const metrics = await page.evaluate(() => {
+    const sidebar = document.querySelector("#sidebar");
+    const panel = document.querySelector("#sidebar .panel");
+    const moduleButtons = Array.from(document.querySelectorAll(".panel-actions-files .btn.small"));
+    const navButton = document.querySelector('#mobile-nav [data-card="modules"]');
+    if (!sidebar || !panel || !moduleButtons.length || !navButton) {
+      return null;
+    }
+    const sidebarRect = sidebar.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    const moduleButtonHeights = moduleButtons.map((btn) => btn.getBoundingClientRect().height);
+    return {
+      fillRatio: panelRect.height / Math.max(1, sidebarRect.height),
+      moduleButtonHeights,
+      navButtonHeight: navButton.getBoundingClientRect().height
+    };
+  });
+  expect(metrics).not.toBeNull();
+  expect(metrics.fillRatio).toBeGreaterThan(0.9);
+  expect(metrics.moduleButtonHeights.every((h) => h >= 44)).toBe(true);
+  expect(metrics.navButtonHeight).toBeGreaterThanOrEqual(44);
+});
+
+test("mobile landing hero code block keeps stable height while typing", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/#/");
+  const firstHeight = await page.locator(".hero-card").evaluate((el) => el.getBoundingClientRect().height);
+  await page.waitForTimeout(1500);
+  const secondHeight = await page.locator(".hero-card").evaluate((el) => el.getBoundingClientRect().height);
+  expect(Math.abs(secondHeight - firstHeight)).toBeLessThanOrEqual(2);
+});
+
+test("mobile editor card keeps caret alignment", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openProject(page, `mobile-caret-${Date.now()}`);
+  const code = Array.from({ length: 60 }, (_, i) => `print(${i})`).join("\n");
+  await page.fill("#editor", code);
+  await page.click('#mobile-nav [data-card="console"]');
+  await page.click('#mobile-nav [data-card="editor"]');
+  const sync = await getEditorSyncMetrics(page);
+  expect(sync.highlightScrollTop).toBe(sync.editorScrollTop);
+  expect(sync.numbersScrollTop).toBe(sync.editorScrollTop);
+  expect(sync.highlightScrollLeft).toBe(sync.editorScrollLeft);
 });
 
 test("turtle shape changes canvas output", async ({ page }) => {
