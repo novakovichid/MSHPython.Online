@@ -104,7 +104,7 @@
     
 
     
-    <h4 class="name" id="createUuid"><span class="type-signature"></span>createUuid<span class="signature">()</span><span class="type-signature"> &rarr; {string}</span></h4>
+    <h4 class="name" id="applyResponsiveCardState"><span class="type-signature"></span>applyResponsiveCardState<span class="signature">()</span><span class="type-signature"> &rarr; {void}</span></h4>
     
 
     
@@ -112,7 +112,8 @@
 
 
 <div class="description">
-    Generates a UUID v4 string.Uses crypto.randomUUID if available, falls back to crypto.getRandomValues,and finally to Math.random() on older browsers.
+    Applies responsive card visibility/state for mobile breakpoints.
+Updates active card, mobile navigation state and editor sync after layout updates.
 </div>
 
 
@@ -156,7 +157,222 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="skulpt-app.js.html">skulpt-app.js</a>, <a href="skulpt-app.js.html#line176">line 176</a>
+        <a href="skulpt-app.js.html">skulpt-app.js</a>, <a href="skulpt-app.js.html#line574">line 574</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">void</span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="bindUi"><span class="type-signature"></span>bindUi<span class="signature">()</span><span class="type-signature"> &rarr; {void}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Binds UI handlers for IDE controls, editor, console and turtle interactions.
+Also registers responsive listeners for viewport changes.
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="skulpt-app.js.html">skulpt-app.js</a>, <a href="skulpt-app.js.html#line360">line 360</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">void</span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="createUuid"><span class="type-signature"></span>createUuid<span class="signature">()</span><span class="type-signature"> &rarr; {string}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Generates a UUID v4 string.
+Uses crypto.randomUUID if available, falls back to crypto.getRandomValues,
+and finally to Math.random() on older browsers.
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="skulpt-app.js.html">skulpt-app.js</a>, <a href="skulpt-app.js.html#line213">line 213</a>
     </li></ul></dd>
     
 
@@ -497,7 +713,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="skulpt-app.js.html">skulpt-app.js</a>, <a href="skulpt-app.js.html#line207">line 207</a>
+        <a href="skulpt-app.js.html">skulpt-app.js</a>, <a href="skulpt-app.js.html#line286">line 286</a>
     </li></ul></dd>
     
 
@@ -703,7 +919,8 @@
 
 
 <div class="description">
-    Application initialization: opens database, sets up UI, loads settings, and starts router.Called once on page load. Shows loading guard while initializing.
+    Application initialization: opens database, sets up UI, loads settings, and starts router.
+Called once on page load. Shows loading guard while initializing.
 </div>
 
 
@@ -747,7 +964,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="skulpt-app.js.html">skulpt-app.js</a>, <a href="skulpt-app.js.html#line254">line 254</a>
+        <a href="skulpt-app.js.html">skulpt-app.js</a>, <a href="skulpt-app.js.html#line336">line 336</a>
     </li></ul></dd>
     
 
@@ -783,6 +1000,161 @@
     
 
     
+    <h4 class="name" id="initializeRuntime"><span class="type-signature">(async) </span>initializeRuntime<span class="signature">(message)</span><span class="type-signature"> &rarr; {Promise.&lt;void>}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Initializes Pyodide runtime in worker and configures stdin transport mode.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>message</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Object</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Init payload with runtime URLs and shared stdin buffer.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="worker.js.html">worker.js</a>, <a href="worker.js.html#line173">line 173</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Promise.&lt;void></span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
     <h4 class="name" id="onAssetUpload"><span class="type-signature">(async) </span>onAssetUpload<span class="signature">()</span><span class="type-signature"></span></h4>
     
 
@@ -791,7 +1163,21 @@
 
 
 <div class="description">
-    ЗАКОНСЕРВИРОВАНО: Загрузка ресурсов (изображений)Причина: Skulpt не поддерживает загрузку изображений как форм черепахи.Это архитектурное ограничение - Skulpt's Shape класс был разработан только дляполигонов (массивов координат). Когда вызывается Shape("image", name), создаётсяобъект, но нет механизма для загрузки актуального файла PNG/JPG или рендерингачерез canvas drawImage().Trinket.io работает, потому что использует собственный turtle.js модуль (JavaScript)вместо встроенного Skulpt turtle, с явной поддержкой Image DOM элементов.Решение: либо переписать turtle модуль как в Trinket, либо обновить Skulptдо версии с поддержкой image shapes, либо использовать другую библиотеку графики.Функция остаётся в коде для возможности восстановления в будущем.
+    ЗАКОНСЕРВИРОВАНО: Загрузка ресурсов (изображений)
+
+Причина: Skulpt не поддерживает загрузку изображений как форм черепахи.
+Это архитектурное ограничение - Skulpt's Shape класс был разработан только для
+полигонов (массивов координат). Когда вызывается Shape("image", name), создаётся
+объект, но нет механизма для загрузки актуального файла PNG/JPG или рендеринга
+через canvas drawImage().
+
+Trinket.io работает, потому что использует собственный turtle.js модуль (JavaScript)
+вместо встроенного Skulpt turtle, с явной поддержкой Image DOM элементов.
+
+Решение: либо переписать turtle модуль как в Trinket, либо обновить Skulpt
+до версии с поддержкой image shapes, либо использовать другую библиотеку графики.
+
+Функция остаётся в коде для возможности восстановления в будущем.
 </div>
 
 
@@ -835,7 +1221,7 @@
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="skulpt-app.js.html">skulpt-app.js</a>, <a href="skulpt-app.js.html#line1291">line 1291</a>
+        <a href="skulpt-app.js.html">skulpt-app.js</a>, <a href="skulpt-app.js.html#line1890">line 1890</a>
     </li></ul></dd>
     
 
@@ -866,6 +1252,588 @@
 
 
         
+            
+
+    
+
+    
+    <h4 class="name" id="remixSnapshot"><span class="type-signature">(async) </span>remixSnapshot<span class="signature">()</span><span class="type-signature"> &rarr; {Promise.&lt;void>}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Starts remix flow for current snapshot draft into a persistent project.
+If user cancels naming modal, snapshot state remains unchanged.
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="skulpt-app.js.html">skulpt-app.js</a>, <a href="skulpt-app.js.html#line2503">line 2503</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Promise.&lt;void></span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="resetSnapshot"><span class="type-signature">(async) </span>resetSnapshot<span class="signature">()</span><span class="type-signature"> &rarr; {Promise.&lt;void>}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Resets snapshot draft to baseline after confirmation and re-renders snapshot mode.
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="skulpt-app.js.html">skulpt-app.js</a>, <a href="skulpt-app.js.html#line2523">line 2523</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Promise.&lt;void></span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="router"><span class="type-signature">(async) </span>router<span class="signature">()</span><span class="type-signature"> &rarr; {Promise.&lt;void>}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Resolves hash route and opens the corresponding IDE/landing mode.
+Supports project, snapshot and embed routes.
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="skulpt-app.js.html">skulpt-app.js</a>, <a href="skulpt-app.js.html#line751">line 751</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Promise.&lt;void></span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="runActiveFile"><span class="type-signature">(async) </span>runActiveFile<span class="signature">()</span><span class="type-signature"> &rarr; {Promise.&lt;void>}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Executes `main.py` in Skulpt runtime and updates IDE run state.
+Handles stdin/stdout/stderr wiring, turtle visibility and mobile card focus.
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="skulpt-app.js.html">skulpt-app.js</a>, <a href="skulpt-app.js.html#line3956">line 3956</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Promise.&lt;void></span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="runCode"><span class="type-signature">(async) </span>runCode<span class="signature">(message)</span><span class="type-signature"> &rarr; {Promise.&lt;void>}</span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    Runs Python entrypoint in worker FS and streams execution events to main thread.
+</div>
+
+
+
+
+
+
+
+
+
+    <h5>Parameters:</h5>
+    
+
+<table class="params">
+    <thead>
+    <tr>
+        
+        <th>Name</th>
+        
+
+        <th>Type</th>
+
+        
+
+        
+
+        <th class="last">Description</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    
+
+        <tr>
+            
+                <td class="name"><code>message</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Object</span>
+
+
+            
+            </td>
+
+            
+
+            
+
+            <td class="description last">Run payload containing files, assets and entrypoint.</td>
+        </tr>
+
+    
+    </tbody>
+</table>
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="worker.js.html">worker.js</a>, <a href="worker.js.html#line243">line 243</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<h5>Returns:</h5>
+
+        
+
+
+<dl>
+    <dt>
+        Type
+    </dt>
+    <dd>
+        
+<span class="param-type">Promise.&lt;void></span>
+
+
+    </dd>
+</dl>
+
+    
+
+
+
+
+
+        
     
 
     
@@ -881,13 +1849,13 @@
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#createUuid">createUuid</a></li><li><a href="global.html#decodeUtf8Fallback">decodeUtf8Fallback</a></li><li><a href="global.html#getStoreKey">getStoreKey</a></li><li><a href="global.html#handleStdinResponse">handleStdinResponse</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#onAssetUpload">onAssetUpload</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#applyResponsiveCardState">applyResponsiveCardState</a></li><li><a href="global.html#bindUi">bindUi</a></li><li><a href="global.html#createUuid">createUuid</a></li><li><a href="global.html#decodeUtf8Fallback">decodeUtf8Fallback</a></li><li><a href="global.html#getStoreKey">getStoreKey</a></li><li><a href="global.html#handleStdinResponse">handleStdinResponse</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#initializeRuntime">initializeRuntime</a></li><li><a href="global.html#onAssetUpload">onAssetUpload</a></li><li><a href="global.html#remixSnapshot">remixSnapshot</a></li><li><a href="global.html#resetSnapshot">resetSnapshot</a></li><li><a href="global.html#router">router</a></li><li><a href="global.html#runActiveFile">runActiveFile</a></li><li><a href="global.html#runCode">runCode</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Tue Jan 27 2026 15:35:51 GMT+0300 (Москва, стандартное время)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Sat Feb 07 2026 03:54:58 GMT+0300 (Москва, стандартное время)
 </footer>
 
 <script> prettyPrint(); </script>

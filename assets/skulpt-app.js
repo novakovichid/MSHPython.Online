@@ -352,6 +352,11 @@ async function init() {
   await router();
 }
 
+/**
+ * Binds UI handlers for IDE controls, editor, console and turtle interactions.
+ * Also registers responsive listeners for viewport changes.
+ * @returns {void}
+ */
 function bindUi() {
   if (els.guardReload) {
     els.guardReload.addEventListener("click", () => location.reload());
@@ -561,6 +566,11 @@ function setUiCard(card) {
   applyResponsiveCardState();
 }
 
+/**
+ * Applies responsive card visibility/state for mobile breakpoints.
+ * Updates active card, mobile navigation state and editor sync after layout updates.
+ * @returns {void}
+ */
 function applyResponsiveCardState() {
   const mobile = isMobileViewport();
   const compact = isCompactViewport();
@@ -732,6 +742,12 @@ function showView(view) {
   state.mode = view === "landing" ? "landing" : state.mode;
 }
 
+/**
+ * Resolves hash route and opens the corresponding IDE/landing mode.
+ * Supports project, snapshot and embed routes.
+ * @async
+ * @returns {Promise<void>}
+ */
 async function router() {
   const { route, id, query } = parseHash();
   if (route === "landing") {
@@ -2478,6 +2494,12 @@ async function readBlobData(blob) {
   });
 }
 
+/**
+ * Starts remix flow for current snapshot draft into a persistent project.
+ * If user cancels naming modal, snapshot state remains unchanged.
+ * @async
+ * @returns {Promise<void>}
+ */
 async function remixSnapshot() {
   if (state.mode !== "snapshot") {
     return;
@@ -2493,6 +2515,11 @@ async function remixSnapshot() {
   }
 }
 
+/**
+ * Resets snapshot draft to baseline after confirmation and re-renders snapshot mode.
+ * @async
+ * @returns {Promise<void>}
+ */
 async function resetSnapshot() {
   if (state.mode !== "snapshot") {
     return;
@@ -3920,6 +3947,12 @@ function updateTurtleVisibilityForRun(files) {
   return usesTurtle;
 }
 
+/**
+ * Executes `main.py` in Skulpt runtime and updates IDE run state.
+ * Handles stdin/stdout/stderr wiring, turtle visibility and mobile card focus.
+ * @async
+ * @returns {Promise<void>}
+ */
 async function runActiveFile() {
   if (state.runtimeBlocked) {
     showGuard(true);
@@ -4004,7 +4037,9 @@ async function runActiveFile() {
           Sk.importMainWithBody("__init_turtle__", false, setupCode, true)
         );
       } catch (err) {
-        console.warn("Turtle patch failed", err);
+        if (DEBUG_ENABLED) {
+          console.warn("Turtle patch failed", err);
+        }
       }
     }
     await Sk.misceval.asyncToPromise(() =>

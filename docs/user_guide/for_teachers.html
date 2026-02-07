@@ -1318,6 +1318,36 @@
       gap: 16px;
     }
 
+    .sandbox-mobile-nav {
+      display: none;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      padding: 8px 10px;
+      border-top: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.98);
+    }
+
+    .sandbox-mobile-nav-btn {
+      min-height: 40px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(236, 243, 255, 0.95);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px;
+      cursor: pointer;
+    }
+
+    .sandbox-mobile-nav-btn.active {
+      border-color: rgba(28, 107, 255, 0.45);
+      background: rgba(28, 107, 255, 0.14);
+    }
+
+    .sandbox-card-hidden {
+      display: none !important;
+    }
+
     .page-footer {
       text-align: center;
       font-size: 14px;
@@ -1399,6 +1429,30 @@
       .panel-header {
         flex-wrap: wrap;
         gap: 8px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      #sandbox-ide {
+        padding: 0;
+      }
+
+      #sandbox-workspace {
+        display: block;
+        overflow: hidden;
+        padding: 8px;
+      }
+
+      #sandbox-workspace>.sidebar,
+      #sandbox-workspace>.editor-pane,
+      #sandbox-workspace>.console-pane,
+      #sandbox-workspace>.turtle-pane {
+        margin: 0;
+        min-height: 430px;
+      }
+
+      .sandbox-mobile-nav {
+        display: grid;
       }
     }
   </style>
@@ -1942,7 +1996,7 @@
           </div>
         </div>
         <div id="sandbox-workspace" class="workspace">
-          <aside class="sidebar">
+          <aside id="sandbox-sidebar-pane" class="sidebar">
             <div class="panel">
               <div class="panel-header">
                 <div class="panel-title">Модули</div>
@@ -1957,7 +2011,7 @@
             </div>
           </aside>
 
-          <section class="editor-pane">
+          <section id="sandbox-editor-pane" class="editor-pane">
             <div class="editor-toolbar">
               <div class="editor-actions">
                 <button id="sandbox-run-btn" class="btn primary">Запуск main.py</button>
@@ -1978,7 +2032,7 @@
             </div>
           </section>
 
-          <section class="console-pane">
+          <section id="sandbox-console-pane" class="console-pane">
             <div class="panel-header">
               <div class="panel-title">Консоль</div>
               <div class="panel-actions">
@@ -1995,7 +2049,7 @@
             </div>
           </section>
 
-          <section class="turtle-pane">
+          <section id="sandbox-turtle-pane" class="turtle-pane">
             <div class="panel-header turtle-header">
               <div class="panel-title">Черепаха</div>
               <div class="turtle-controls">
@@ -2022,6 +2076,12 @@
             </div>
           </section>
         </div>
+        <nav id="sandbox-mobile-nav" class="sandbox-mobile-nav" aria-label="Навигация песочницы">
+          <button type="button" class="sandbox-mobile-nav-btn" data-card="modules">Модули</button>
+          <button type="button" class="sandbox-mobile-nav-btn active" data-card="editor">Редактор</button>
+          <button type="button" class="sandbox-mobile-nav-btn" data-card="console">Консоль</button>
+          <button type="button" class="sandbox-mobile-nav-btn" data-card="turtle">Черепаха</button>
+        </nav>
         <button id="sandbox-restart-btn" class="btn ghost topbar-restart">Перезапуск IDE</button>
       </div>
     </div>
@@ -2846,6 +2906,52 @@
     });
 
     const sandboxWorkspace = document.getElementById("sandbox-workspace");
+    const sandboxMobileNav = document.getElementById("sandbox-mobile-nav");
+    const sandboxMobileButtons = Array.from(document.querySelectorAll("#sandbox-mobile-nav .sandbox-mobile-nav-btn"));
+    const sandboxCards = {
+      modules: document.getElementById("sandbox-sidebar-pane"),
+      editor: document.getElementById("sandbox-editor-pane"),
+      console: document.getElementById("sandbox-console-pane"),
+      turtle: document.getElementById("sandbox-turtle-pane")
+    };
+    let sandboxActiveCard = "editor";
+
+    function isSandboxMobileViewport() {
+      return window.matchMedia("(max-width: 768px)").matches;
+    }
+
+    function setSandboxCard(card) {
+      if (!sandboxCards[card]) {
+        return;
+      }
+      sandboxActiveCard = card;
+      applySandboxResponsiveLayout();
+    }
+
+    function applySandboxResponsiveLayout() {
+      const mobile = isSandboxMobileViewport();
+      if (sandboxMobileNav) {
+        sandboxMobileNav.classList.toggle("hidden", !mobile);
+      }
+      Object.entries(sandboxCards).forEach(([key, element]) => {
+        if (!element) {
+          return;
+        }
+        element.classList.toggle("sandbox-card-hidden", mobile && key !== sandboxActiveCard);
+      });
+      sandboxMobileButtons.forEach((button) => {
+        const active = mobile && button.dataset.card === sandboxActiveCard;
+        button.classList.toggle("active", active);
+      });
+    }
+
+    sandboxMobileButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        setSandboxCard(button.dataset.card);
+      });
+    });
+
+    window.addEventListener("resize", applySandboxResponsiveLayout);
     function setSandboxConsoleLayout(right) {
       if (!sandboxWorkspace) {
         return;
@@ -2976,6 +3082,9 @@
       document.querySelectorAll(".sandbox-view").forEach((view) => {
         view.classList.toggle("active", view.id === viewId);
       });
+      if (viewId === "sandbox-ide") {
+        applySandboxResponsiveLayout();
+      }
     }
 
     document.getElementById("sandbox-new-project").addEventListener("click", () => {

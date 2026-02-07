@@ -165,6 +165,11 @@ function setupSharedStdin(shared) {
     return true;
 }
 
+/**
+ * Initializes Pyodide runtime in worker and configures stdin transport mode.
+ * @param {Object} message - Init payload with runtime URLs and shared stdin buffer.
+ * @returns {Promise<void>}
+ */
 async function initializeRuntime(message) {
     self.stdin_blocking = null;
     const sharedReady = setupSharedStdin(message.stdinShared);
@@ -230,6 +235,11 @@ async function initializeRuntime(message) {
     postMessage({ type: "ready" });
 }
 
+/**
+ * Runs Python entrypoint in worker FS and streams execution events to main thread.
+ * @param {Object} message - Run payload containing files, assets and entrypoint.
+ * @returns {Promise<void>}
+ */
 async function runCode(message) {
     if (!pyodideReady) {
         postMessage({ type: "stderr", data: "Среда выполнения не готова.\n" });

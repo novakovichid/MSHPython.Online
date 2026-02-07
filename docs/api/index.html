@@ -44,28 +44,97 @@
 
     <section>
         <article><h1>МШПайтон.Онлайн</h1>
-<p>Веб-среда разработки Python с встроенной графикой Turtle, работающая полностью в браузере.</p>
-<h2>Основные возможности</h2>
+<p><a href="https://github.com/novakovichid/MSHPython.Online/actions/workflows/tests.yml"><img src="https://github.com/novakovichid/MSHPython.Online/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
+<a href="https://coveralls.io/github/novakovichid/MSHPython.Online?branch=main"><img src="https://coveralls.io/repos/github/novakovichid/MSHPython.Online/badge.svg?branch=main" alt="Coverage Status"></a></p>
+<p>Статус: релизная версия.</p>
+<p>МШПайтон.Онлайн - браузерная Python IDE для учебных задач с поддержкой многофайловых проектов, консоли, Turtle-графики и шаринга по ссылке.</p>
+<h2>Что умеет IDE</h2>
 <ul>
-<li>🚀 <strong>Графика Turtle</strong> — встроенная поддержка библиотеки Turtle прямо в браузере.</li>
-<li>📦 <strong>Модульные проекты</strong> — создавайте многофайловые проекты с импортами между модулями.</li>
-<li>🔗 <strong>Шеринг по ссылке</strong> — поделитесь проектом одной ссылкой, для просмотра не нужна регистрация.</li>
-<li>✏️ <strong>Управление проектами</strong> — переименование, дублирование и полный экспорт (JSON/ZIP).</li>
-<li>🎨 <strong>Современный интерфейс</strong> — удобная верстка с раздельными панелями кода, консоли и графики.</li>
+<li>Многофайловые проекты (<code>main.py</code> + модули <code>.py</code>).</li>
+<li>Запуск Python-кода прямо в браузере.</li>
+<li>Встроенная Turtle-графика.</li>
+<li>Шеринг проекта через snapshot-ссылку.</li>
+<li>Режим Snapshot:
+<ul>
+<li>локальный черновик изменений;</li>
+<li><code>Сброс</code> для отката к исходному снимку;</li>
+<li><code>Ремикс</code> для сохранения временной копии как постоянного локального проекта.</li>
+</ul>
+</li>
+<li>Импорт/экспорт файлов проекта.</li>
 </ul>
 <h2>Документация</h2>
 <ul>
-<li><strong><a href="docs/USER_GUIDE.md">Руководство пользователя</a></strong> — как работать в IDE.</li>
-<li><strong><a href="docs/TECHNICAL_GUIDE.md">Техническое руководство</a></strong> — архитектура и детали.</li>
+<li>Пользовательское руководство (Markdown): <code>docs/USER_GUIDE.md</code></li>
+<li>Техническое руководство: <code>docs/TECHNICAL_GUIDE.md</code></li>
+<li>HTML-гайды:
+<ul>
+<li>Для пользователей: <code>docs/user_guide/for_users.html</code></li>
+<li>Для преподавателей: <code>docs/user_guide/for_teachers.html</code></li>
+</ul>
+</li>
 </ul>
 <h2>Быстрый старт</h2>
+<h3>Вариант 1: локальный статический сервер</h3>
+<p>Windows:</p>
 <pre class="prettyprint source lang-bash"><code>serve.bat
 </code></pre>
-<p>Откройте в браузере и создавайте проекты на Python!</p>
+<p>Linux/macOS:</p>
+<pre class="prettyprint source lang-bash"><code>./serve.sh
+</code></pre>
+<p>macOS (двойной клик/Terminal):</p>
+<pre class="prettyprint source lang-bash"><code>./serve.command
+</code></pre>
+<p>По умолчанию используется порт <code>8000</code>.</p>
+<p>С другим портом:</p>
+<pre class="prettyprint source lang-bash"><code>PORT=9000 ./serve.sh
+</code></pre>
+<h3>Вариант 2: Python вручную</h3>
+<pre class="prettyprint source lang-bash"><code>python3 -m http.server 8000
+</code></pre>
+<p>Откройте в браузере:</p>
+<ul>
+<li><code>http://127.0.0.1:8000</code></li>
+</ul>
+<h2>Разработка</h2>
+<h3>Установка зависимостей</h3>
+<pre class="prettyprint source lang-bash"><code>npm ci
+</code></pre>
+<h3>Unit-тесты</h3>
+<pre class="prettyprint source lang-bash"><code>npm run test:unit
+</code></pre>
+<h3>Unit + coverage</h3>
+<pre class="prettyprint source lang-bash"><code>npm run test:unit:coverage
+</code></pre>
+<h3>E2E (Playwright)</h3>
+<pre class="prettyprint source lang-bash"><code>npx playwright test
+</code></pre>
+<p>E2E в песочнице (Chromium):</p>
+<pre class="prettyprint source lang-bash"><code>npx playwright test -c playwright.sandbox.config.cjs
+</code></pre>
+<p>Запуск только snapshot/remix сценариев:</p>
+<pre class="prettyprint source lang-bash"><code>npx playwright test tests/ide.spec.js --grep &quot;remix|snapshot&quot;
+</code></pre>
+<h2>Структура проекта (основное)</h2>
+<ul>
+<li><code>index.html</code> - основной интерфейс.</li>
+<li><code>assets/skulpt-app.js</code> - основной frontend runtime.</li>
+<li><code>assets/skulpt-styles.css</code> - основные стили интерфейса.</li>
+<li><code>assets/app.js</code>, <code>assets/styles.css</code> - параллельная/зеркальная реализация.</li>
+<li><code>assets/utils/*.js</code> - утилиты.</li>
+<li><code>assets/worker.js</code> - worker-часть runtime.</li>
+<li><code>tests/</code> - e2e и unit тесты.</li>
+</ul>
+<h2>Ограничения</h2>
+<ul>
+<li>Для работы нужен HTTP-сервер (протокол <code>file://</code> не поддерживается).</li>
+<li>Snapshot-ссылки ориентированы на код проекта (без вложенных загруженных ассетов).</li>
+</ul>
 <h2>Требования</h2>
 <ul>
-<li>Chrome, Chromium или Safari</li>
-<li>Статический HTTP-сервер (протокол <code>file://</code> не поддерживается)</li>
+<li>Современный Chromium/Chrome/Safari/Firefox.</li>
+<li>Node.js и npm для тестов и dev-процессов.</li>
+<li>Python 3 для запуска локального статического сервера.</li>
 </ul></article>
     </section>
 
@@ -77,13 +146,13 @@
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#createUuid">createUuid</a></li><li><a href="global.html#decodeUtf8Fallback">decodeUtf8Fallback</a></li><li><a href="global.html#getStoreKey">getStoreKey</a></li><li><a href="global.html#handleStdinResponse">handleStdinResponse</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#onAssetUpload">onAssetUpload</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Global</h3><ul><li><a href="global.html#applyResponsiveCardState">applyResponsiveCardState</a></li><li><a href="global.html#bindUi">bindUi</a></li><li><a href="global.html#createUuid">createUuid</a></li><li><a href="global.html#decodeUtf8Fallback">decodeUtf8Fallback</a></li><li><a href="global.html#getStoreKey">getStoreKey</a></li><li><a href="global.html#handleStdinResponse">handleStdinResponse</a></li><li><a href="global.html#init">init</a></li><li><a href="global.html#initializeRuntime">initializeRuntime</a></li><li><a href="global.html#onAssetUpload">onAssetUpload</a></li><li><a href="global.html#remixSnapshot">remixSnapshot</a></li><li><a href="global.html#resetSnapshot">resetSnapshot</a></li><li><a href="global.html#router">router</a></li><li><a href="global.html#runActiveFile">runActiveFile</a></li><li><a href="global.html#runCode">runCode</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Tue Jan 27 2026 15:35:51 GMT+0300 (Москва, стандартное время)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Sat Feb 07 2026 03:54:58 GMT+0300 (Москва, стандартное время)
 </footer>
 
 <script> prettyPrint(); </script>
