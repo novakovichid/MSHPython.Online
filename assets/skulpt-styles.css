@@ -682,6 +682,13 @@ body {
   line-height: 1;
 }
 
+#editor-mode-toggle {
+  min-width: 110px;
+  padding: 4px 8px;
+  font-weight: 600;
+  line-height: 1;
+}
+
 .editor-actions .run-status {
   padding-left: 10px;
   border-left: 1px solid var(--border);
@@ -731,6 +738,53 @@ body {
   resize: none;
   tab-size: 4;
   z-index: 1;
+}
+
+.editor.cm6-source-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.editor-stack.cm6-active .editor {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.editor-wrap.cm6-mode .line-numbers,
+.editor-wrap.cm6-mode .editor-highlight {
+  display: none;
+}
+
+.cm6-editor-host {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.cm6-editor-host .cm-editor {
+  height: 100%;
+  background: transparent;
+  font-family: var(--code-font);
+  font-size: calc(var(--editor-font-size, 14) * 1px);
+  line-height: var(--code-line-height);
+}
+
+.cm6-editor-host .cm-scroller {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.cm6-editor-host .cm-content,
+.cm6-editor-host .cm-gutters {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.cm6-editor-host .cm-gutters {
+  border-right: 1px solid var(--border);
+  background: rgba(236, 243, 255, 0.95);
 }
 
 .console-pane {

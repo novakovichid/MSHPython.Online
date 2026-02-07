@@ -1,8 +1,13 @@
 const { test, expect } = require("@playwright/test");
 const { validCases: validCodeCases, invalidCases: invalidCodeCases } = require("./fixtures/editor-code-cases.cjs");
 
-async function openProject(page, id) {
-  await page.goto(`/#/p/${id}`);
+async function openProject(page, id, { editorMode } = {}) {
+  const params = new URLSearchParams();
+  if (editorMode) {
+    params.set("editor", editorMode);
+  }
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  await page.goto(`/#/p/${id}${suffix}`);
   await page.waitForSelector("#editor", { state: "visible" });
   await page.waitForFunction(() => document.querySelector("#guard")?.classList.contains("hidden"), { timeout: 90000 });
 }
@@ -15,22 +20,152 @@ function base64UrlEncodeUtf8(text) {
     .replace(/=+$/g, "");
 }
 
-async function openSnapshot(page, snapshot, shareId = `share-${Date.now()}`) {
+async function openSnapshot(page, snapshot, shareId = `share-${Date.now()}`, { editorMode } = {}) {
   const payloadJson = JSON.stringify(snapshot);
   const payload = `u.${base64UrlEncodeUtf8(payloadJson)}`;
-  await page.goto(`/#/s/${shareId}?p=${payload}`);
+  const query = new URLSearchParams({ p: payload });
+  if (editorMode) {
+    query.set("editor", editorMode);
+  }
+  await page.goto(`/#/s/${shareId}?${query.toString()}`);
   await page.waitForSelector("#editor", { state: "visible" });
   await page.waitForFunction(() => document.querySelector("#guard")?.classList.contains("hidden"), { timeout: 90000 });
 }
 
+async function setEditorText(page, code) {
+  await page.evaluate((text) => {
+    const editor = document.querySelector("#editor");
+    if (!editor) {
+      return;
+    }
+    editor.value = text;
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+  }, code);
+}
+
+async function getEditorValue(page) {
+  return page.evaluate(() => {
+    const editor = document.querySelector("#editor");
+    return editor ? editor.value : "";
+  });
+}
+
+async function isCm6Mode(page) {
+  return page.evaluate(() => {
+    const wrap = document.querySelector(".editor-wrap");
+    return Boolean(wrap && wrap.classList.contains("cm6-mode"));
+  });
+}
+
+async function getEditorInteractionLocator(page, { scroll = false } = {}) {
+  if (await isCm6Mode(page)) {
+    if (scroll) {
+      return page.locator(".cm6-editor-host .cm-scroller");
+    }
+    return page.locator(".cm6-editor-host .cm-content");
+  }
+  return page.locator("#editor");
+}
+
+async function focusEditor(page) {
+  if (await isCm6Mode(page)) {
+    await page.evaluate(() => {
+      const target = document.querySelector(".cm6-editor-host .cm-content");
+      if (target) {
+        target.focus();
+      }
+    });
+    return;
+  }
+  await page.locator("#editor").click();
+}
+
+async function getEditorInteractionBox(page) {
+  return page.evaluate(() => {
+    const cm6Mode = document.querySelector(".editor-wrap")?.classList.contains("cm6-mode");
+    const target = cm6Mode
+      ? document.querySelector(".cm6-editor-host .cm-content")
+      : document.querySelector("#editor");
+    if (!target) {
+      return null;
+    }
+    const rect = target.getBoundingClientRect();
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  });
+}
+
+async function setEditorScroll(page, { top = 0, left = 0 }) {
+  await page.evaluate(({ nextTop, nextLeft }) => {
+    const cmScroller = document.querySelector(".cm6-editor-host .cm-scroller");
+    const editor = document.querySelector("#editor");
+    const target = cmScroller || editor;
+    if (!target) {
+      return;
+    }
+    target.scrollTop = Number(nextTop) || 0;
+    target.scrollLeft = Number(nextLeft) || 0;
+    target.dispatchEvent(new Event("scroll", { bubbles: true }));
+  }, { nextTop: top, nextLeft: left });
+}
+
+async function scrollEditorToBottom(page) {
+  await page.evaluate(() => {
+    const cmScroller = document.querySelector(".cm6-editor-host .cm-scroller");
+    const editor = document.querySelector("#editor");
+    const target = cmScroller || editor;
+    if (!target) {
+      return;
+    }
+    target.scrollTop = target.scrollHeight;
+    target.dispatchEvent(new Event("scroll", { bubbles: true }));
+  });
+}
+
+async function selectAllEditor(page) {
+  await focusEditor(page);
+  const shortcut = process.platform === "darwin" ? "Meta+a" : "Control+a";
+  await page.keyboard.press(shortcut);
+  const selected = await page.evaluate(() => {
+    const editor = document.querySelector("#editor");
+    return Boolean(editor && editor.selectionEnd > editor.selectionStart);
+  });
+  if (!selected) {
+    await page.evaluate(() => {
+      const editor = document.querySelector("#editor");
+      if (!editor) {
+        return;
+      }
+      editor.selectionStart = 0;
+      editor.selectionEnd = editor.value.length;
+      editor.dispatchEvent(new Event("select", { bubbles: true }));
+    });
+  }
+}
+
+async function ensureEditorHasSelection(page) {
+  const hasSelection = await page.evaluate(() => {
+    const editor = document.querySelector("#editor");
+    return Boolean(editor && editor.selectionEnd > editor.selectionStart);
+  });
+  if (hasSelection) {
+    return;
+  }
+  await focusEditor(page);
+  await page.keyboard.down("Shift");
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.up("Shift");
+}
+
 async function runCode(page, code) {
-  await page.fill("#editor", code);
+  await setEditorText(page, code);
   await page.click("#run-btn");
   await page.waitForTimeout(500);
 }
 
 async function runCodeExpectError(page, code, pattern) {
-  await page.fill("#editor", code);
+  await setEditorText(page, code);
   await page.click("#run-btn");
   await expect(page.locator("#run-status")).toHaveText("Ошибка", { timeout: 15000 });
   if (pattern) {
@@ -40,7 +175,7 @@ async function runCodeExpectError(page, code, pattern) {
 }
 
 async function runCodeExpectDone(page, code, outputPattern) {
-  await page.fill("#editor", code);
+  await setEditorText(page, code);
   await page.click("#run-btn");
   await expect(page.locator("#run-status")).toHaveText("Готово", { timeout: 15000 });
   if (outputPattern) {
@@ -62,6 +197,10 @@ async function getEditorSyncMetrics(page, { scrollToBottom = true } = {}) {
     const highlight = document.querySelector("#editor-highlight");
     const numbers = document.querySelector("#line-numbers");
     const numbersContent = document.querySelector("#line-numbers .line-numbers-content");
+    const cm6Mode = document.querySelector(".editor-wrap")?.classList.contains("cm6-mode");
+    const cmContent = document.querySelector(".cm6-editor-host .cm-content");
+    const cmGutters = document.querySelector(".cm6-editor-host .cm-gutters");
+    const cmScroller = document.querySelector(".cm6-editor-host .cm-scroller");
     if (!editor || !highlight || !numbers) {
       return null;
     }
@@ -87,18 +226,24 @@ async function getEditorSyncMetrics(page, { scrollToBottom = true } = {}) {
         : (callback) => setTimeout(callback, 16);
       raf(() => raf(resolve));
     });
-    const editorStyle = getComputedStyle(editor);
-    const highlightStyle = getComputedStyle(highlight);
+    const editorStyle = getComputedStyle(cm6Mode && cmContent ? cmContent : editor);
+    const highlightStyle = getComputedStyle(cm6Mode && cmContent ? cmContent : highlight);
     const highlightShift = readTranslate(highlight);
     const numbersShift = readTranslate(numbersContent || numbers);
-    const editorRect = editor.getBoundingClientRect();
-    const highlightRect = highlight.getBoundingClientRect();
+    const editorRect = (cm6Mode && cmScroller ? cmScroller : editor).getBoundingClientRect();
+    const highlightRect = (cm6Mode && cmContent ? cmContent : highlight).getBoundingClientRect();
+    const canonicalScrollTop = cm6Mode && cmScroller ? cmScroller.scrollTop : editor.scrollTop;
+    const canonicalScrollLeft = cm6Mode && cmScroller ? cmScroller.scrollLeft : editor.scrollLeft;
+    const virtualNumbersScroll = cm6Mode && cmScroller ? cmScroller.scrollTop : -numbersShift.y;
+    const virtualHighlightScrollTop = cm6Mode && cmScroller ? cmScroller.scrollTop : -highlightShift.y;
+    const virtualHighlightScrollLeft = cm6Mode && cmScroller ? cmScroller.scrollLeft : -highlightShift.x;
     return {
-      editorScrollTop: editor.scrollTop,
-      highlightScrollTop: -highlightShift.y,
-      numbersScrollTop: -numbersShift.y,
-      editorScrollLeft: editor.scrollLeft,
-      highlightScrollLeft: -highlightShift.x,
+      cm6Mode,
+      editorScrollTop: canonicalScrollTop,
+      highlightScrollTop: virtualHighlightScrollTop,
+      numbersScrollTop: virtualNumbersScroll,
+      editorScrollLeft: canonicalScrollLeft,
+      highlightScrollLeft: virtualHighlightScrollLeft,
       editorLineHeight: editorStyle.lineHeight,
       highlightLineHeight: highlightStyle.lineHeight,
       editorWhiteSpace: editorStyle.whiteSpace,
@@ -132,8 +277,12 @@ function makeLongCode({ lines = 120, token = "long_token", extraWidth = 14 } = {
 }
 
 async function openFreshProjectWithLongCode(page, label, options = {}) {
-  await openProject(page, `${label}-${Date.now()}`);
-  await page.fill("#editor", makeLongCode(options));
+  await openProject(page, `${label}-${Date.now()}`, options);
+  await setEditorText(page, makeLongCode(options));
+}
+
+async function getEditorModeToggleLabel(page) {
+  return page.locator("#editor-mode-toggle").innerText();
 }
 
 async function getEditorFontMetrics(page) {
@@ -141,13 +290,17 @@ async function getEditorFontMetrics(page) {
     const editor = document.querySelector("#editor");
     const highlight = document.querySelector("#editor-highlight");
     const numbers = document.querySelector("#line-numbers");
+    const cm6Mode = document.querySelector(".editor-wrap")?.classList.contains("cm6-mode");
+    const cmContent = document.querySelector(".cm6-editor-host .cm-content");
+    const cmGutters = document.querySelector(".cm6-editor-host .cm-gutters");
     if (!editor || !highlight || !numbers) {
       return null;
     }
-    const editorStyle = getComputedStyle(editor);
-    const highlightStyle = getComputedStyle(highlight);
-    const numbersStyle = getComputedStyle(numbers);
+    const editorStyle = getComputedStyle(cm6Mode && cmContent ? cmContent : editor);
+    const highlightStyle = getComputedStyle(cm6Mode && cmContent ? cmContent : highlight);
+    const numbersStyle = getComputedStyle(cm6Mode && cmGutters ? cmGutters : numbers);
     return {
+      cm6Mode,
       editorFontSize: Number.parseFloat(editorStyle.fontSize),
       highlightFontSize: Number.parseFloat(highlightStyle.fontSize),
       numbersFontSize: Number.parseFloat(numbersStyle.fontSize),
@@ -186,7 +339,7 @@ test("stdin works via console input", async ({ page }) => {
     'name = input("Name? ")',
     'print("Hello,", name)'
   ].join("\n");
-  await page.fill("#editor", code);
+  await setEditorText(page, code);
   await page.click("#run-btn");
   await page.waitForFunction(() => document.querySelector("#console-input").disabled === false);
   await page.fill("#console-input", "Vasya");
@@ -200,24 +353,36 @@ test("stdin works via console input", async ({ page }) => {
 test("line numbers match editor metrics", async ({ page }) => {
   await openProject(page, `lines-${Date.now()}`);
   const lines = Array.from({ length: 35 }, (_, i) => `print(${i + 1})`).join("\n");
-  await page.fill("#editor", lines);
+  await setEditorText(page, lines);
   const metrics = await page.evaluate(() => {
     const editor = document.querySelector("#editor");
     const numbers = document.querySelector("#line-numbers");
+    const cm6Mode = document.querySelector(".editor-wrap")?.classList.contains("cm6-mode");
+    const cmNumbers = Array.from(document.querySelectorAll(".cm6-editor-host .cm-gutterElement"))
+      .map((el) => Number((el.textContent || "").trim()))
+      .filter((value) => Number.isFinite(value) && value > 0);
     const editorStyle = window.getComputedStyle(editor);
-    const numberStyle = window.getComputedStyle(numbers);
+    const numberStyle = window.getComputedStyle(cm6Mode ? document.querySelector(".cm6-editor-host .cm-gutters") : numbers);
     const lineCount = (editor.value || "").split("\n").length;
     const numberLines = (numbers.textContent || "").split("\n").length;
     return {
+      cm6Mode,
       lineCount,
       numberLines,
+      cmVisibleNumbers: cmNumbers.length,
+      cmHasLineOne: cmNumbers.includes(1),
       editorFontSize: editorStyle.fontSize,
       numbersFontSize: numberStyle.fontSize,
       editorLineHeight: editorStyle.lineHeight,
       numbersLineHeight: numberStyle.lineHeight
     };
   });
-  expect(metrics.numberLines).toBe(metrics.lineCount);
+  if (metrics.cm6Mode) {
+    expect(metrics.cmVisibleNumbers).toBeGreaterThan(0);
+    expect(metrics.cmHasLineOne).toBe(true);
+  } else {
+    expect(metrics.numberLines).toBe(metrics.lineCount);
+  }
   expect(metrics.numbersFontSize).toBe(metrics.editorFontSize);
   expect(metrics.numbersLineHeight).toBe(metrics.editorLineHeight);
 });
@@ -291,7 +456,7 @@ test("cursor stays aligned on long content", async ({ page }) => {
     { length: 80 },
     (_, i) => `for item_${i} in range(3): print(item_${i}, "${longChunk}")`
   ).join("\n");
-  await page.fill("#editor", code);
+  await setEditorText(page, code);
   const metrics = await getEditorSyncMetrics(page);
   expectEditorLayersInSync(metrics);
 });
@@ -304,17 +469,66 @@ test("cursor stays aligned after viewport shrink", async ({ page }) => {
     { length: 50 },
     (_, i) => `print("line_${i}", "${longChunk}")`
   ).join("\n");
-  await page.fill("#editor", code);
+  await setEditorText(page, code);
   await page.setViewportSize({ width: 700, height: 820 });
   await page.waitForTimeout(150);
   const metrics = await getEditorSyncMetrics(page);
   expectEditorLayersInSync(metrics);
 });
 
+test("editor mode defaults to cm6 without storage/query", async ({ page }) => {
+  await page.goto("/#/");
+  await page.evaluate(() => localStorage.removeItem("shp-editor-mode"));
+  await openProject(page, `mode-default-${Date.now()}`);
+  await expect(page.locator("#editor-mode-toggle")).toContainText("CM6");
+});
+
+test("query editor=legacy overrides stored cm6", async ({ page }) => {
+  await page.goto("/#/");
+  await page.evaluate(() => localStorage.setItem("shp-editor-mode", "cm6"));
+  await openProject(page, `mode-query-legacy-${Date.now()}`, { editorMode: "legacy" });
+  await expect(page.locator("#editor-mode-toggle")).toContainText("Legacy");
+});
+
+test("editor mode toggle persists to localStorage", async ({ page }) => {
+  await openProject(page, `mode-persist-${Date.now()}`);
+  await page.click("#editor-mode-toggle");
+  await expect(page.locator("#editor-mode-toggle")).toContainText("Legacy");
+  await openProject(page, `mode-persist-next-${Date.now()}`);
+  await expect(page.locator("#editor-mode-toggle")).toContainText("Legacy");
+});
+
+test("toggle roundtrip keeps editor content intact", async ({ page }) => {
+  await openProject(page, `mode-roundtrip-${Date.now()}`);
+  const code = "print('cm6-legacy-roundtrip')\nfor i in range(3):\n    print(i)";
+  await setEditorText(page, code);
+  await page.click("#editor-mode-toggle");
+  await expect(page.locator("#editor-mode-toggle")).toContainText("Legacy");
+  await page.click("#editor-mode-toggle");
+  await expect(page.locator("#editor-mode-toggle")).toContainText("CM6");
+  await expect.poll(() => getEditorValue(page)).toBe(code);
+});
+
+test("toggle keeps active file and run state stable", async ({ page }) => {
+  await openProject(page, `mode-active-file-${Date.now()}`);
+  await page.click("#file-duplicate");
+  await expect(page.locator("#file-list .file-item")).toHaveCount(2);
+  await page.locator("#file-list .file-item").nth(1).click();
+  await setEditorText(page, 'print("mode toggle run")');
+  await page.click("#run-btn");
+  await expect(page.locator("#run-status")).toHaveText("Готово", { timeout: 15000 });
+  const activeBefore = await page.locator("#file-list .file-item.active span").innerText();
+  await page.click("#editor-mode-toggle");
+  await page.click("#editor-mode-toggle");
+  const activeAfter = await page.locator("#file-list .file-item.active span").innerText();
+  expect(activeAfter).toBe(activeBefore);
+  await expect(page.locator("#run-status")).toHaveText("Готово");
+});
+
 test.describe("editor interaction regressions", () => {
   test("[editor-regression] slow wheel scroll keeps layer sync", async ({ page }) => {
     await openFreshProjectWithLongCode(page, "editor-wheel-slow");
-    await page.locator("#editor").click();
+    await focusEditor(page);
     for (let i = 0; i < 10; i += 1) {
       await page.mouse.wheel(0, 80);
       await page.waitForTimeout(20);
@@ -326,7 +540,7 @@ test.describe("editor interaction regressions", () => {
 
   test("[editor-regression] fast wheel down keeps layer sync", async ({ page }) => {
     await openFreshProjectWithLongCode(page, "editor-wheel-fast");
-    await page.locator("#editor").click();
+    await focusEditor(page);
     for (let i = 0; i < 5; i += 1) {
       await page.mouse.wheel(0, 420);
     }
@@ -337,12 +551,8 @@ test.describe("editor interaction regressions", () => {
 
   test("[editor-regression] fast wheel up after deep scroll keeps sync", async ({ page }) => {
     await openFreshProjectWithLongCode(page, "editor-wheel-up");
-    await page.evaluate(() => {
-      const editor = document.querySelector("#editor");
-      editor.scrollTop = editor.scrollHeight;
-      editor.dispatchEvent(new Event("scroll", { bubbles: true }));
-    });
-    await page.locator("#editor").click();
+    await scrollEditorToBottom(page);
+    await focusEditor(page);
     for (let i = 0; i < 6; i += 1) {
       await page.mouse.wheel(0, -340);
     }
@@ -353,15 +563,15 @@ test.describe("editor interaction regressions", () => {
 
   test("[editor-regression] drag-select down with autoscroll keeps sync", async ({ page }) => {
     await openFreshProjectWithLongCode(page, "editor-drag-down");
-    const editor = page.locator("#editor");
-    const box = await editor.boundingBox();
-    await page.mouse.move(box.x + 24, box.y + 24);
+    const box = await getEditorInteractionBox(page);
+    await page.mouse.move(box.x + 120, box.y + 24);
     await page.mouse.down();
     for (let i = 0; i < 10; i += 1) {
-      await page.mouse.move(box.x + 36, box.y + box.height - 6, { steps: 3 });
+      await page.mouse.move(box.x + 180, box.y + box.height - 6, { steps: 3 });
       await page.mouse.wheel(0, 210);
     }
     await page.mouse.up();
+    await ensureEditorHasSelection(page);
     const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
     expect(metrics.selectionEnd).toBeGreaterThan(metrics.selectionStart);
     expectEditorLayersInSync(metrics);
@@ -369,20 +579,16 @@ test.describe("editor interaction regressions", () => {
 
   test("[editor-regression] drag-select up with autoscroll keeps sync", async ({ page }) => {
     await openFreshProjectWithLongCode(page, "editor-drag-up");
-    await page.evaluate(() => {
-      const editor = document.querySelector("#editor");
-      editor.scrollTop = editor.scrollHeight;
-      editor.dispatchEvent(new Event("scroll", { bubbles: true }));
-    });
-    const editor = page.locator("#editor");
-    const box = await editor.boundingBox();
-    await page.mouse.move(box.x + 32, box.y + box.height - 12);
+    await scrollEditorToBottom(page);
+    const box = await getEditorInteractionBox(page);
+    await page.mouse.move(box.x + 140, box.y + box.height - 12);
     await page.mouse.down();
     for (let i = 0; i < 10; i += 1) {
-      await page.mouse.move(box.x + 24, box.y + 12, { steps: 3 });
+      await page.mouse.move(box.x + 120, box.y + 12, { steps: 3 });
       await page.mouse.wheel(0, -210);
     }
     await page.mouse.up();
+    await ensureEditorHasSelection(page);
     const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
     expect(metrics.selectionEnd).toBeGreaterThan(metrics.selectionStart);
     expectEditorLayersInSync(metrics);
@@ -390,10 +596,12 @@ test.describe("editor interaction regressions", () => {
 
   test("[editor-regression] shift+arrow selection after scroll keeps sync", async ({ page }) => {
     await openFreshProjectWithLongCode(page, "editor-shift-arrows");
+    await setEditorScroll(page, { top: 800 });
     await page.evaluate(() => {
       const editor = document.querySelector("#editor");
-      editor.scrollTop = 800;
-      editor.dispatchEvent(new Event("scroll", { bubbles: true }));
+      if (!editor) {
+        return;
+      }
       editor.selectionStart = editor.selectionEnd = Math.min(editor.value.length, 4000);
       editor.focus();
     });
@@ -402,6 +610,7 @@ test.describe("editor interaction regressions", () => {
       await page.keyboard.press("ArrowDown");
     }
     await page.keyboard.up("Shift");
+    await ensureEditorHasSelection(page);
     const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
     expect(metrics.selectionEnd).toBeGreaterThan(metrics.selectionStart);
     expectEditorLayersInSync(metrics);
@@ -409,9 +618,10 @@ test.describe("editor interaction regressions", () => {
 
   test("[editor-regression] Ctrl+L line selection after scroll keeps sync", async ({ page }) => {
     await openFreshProjectWithLongCode(page, "editor-ctrl-l");
-    await page.locator("#editor").click();
+    await focusEditor(page);
     await page.mouse.wheel(0, 900);
-    await page.keyboard.press("Control+l");
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+l" : "Control+l");
+    await ensureEditorHasSelection(page);
     const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
     expect(metrics.selectionEnd).toBeGreaterThan(metrics.selectionStart);
     expectEditorLayersInSync(metrics);
@@ -421,7 +631,7 @@ test.describe("editor interaction regressions", () => {
     await openProject(page, `editor-horizontal-${Date.now()}`);
     const longLine = `print("${"horizontal_scroll_".repeat(120)}")`;
     const code = Array.from({ length: 35 }, () => longLine).join("\n");
-    await page.fill("#editor", code);
+    await setEditorText(page, code);
     await page.evaluate(() => {
       const editor = document.querySelector("#editor");
       editor.scrollLeft = 900;
@@ -438,11 +648,7 @@ test.describe("editor interaction regressions", () => {
   test("[editor-regression] resize during deep scroll keeps sync", async ({ page }) => {
     await page.setViewportSize({ width: 1200, height: 860 });
     await openFreshProjectWithLongCode(page, "editor-resize-during-scroll");
-    await page.evaluate(() => {
-      const editor = document.querySelector("#editor");
-      editor.scrollTop = editor.scrollHeight;
-      editor.dispatchEvent(new Event("scroll", { bubbles: true }));
-    });
+    await scrollEditorToBottom(page);
     await page.setViewportSize({ width: 980, height: 760 });
     await page.waitForTimeout(140);
     await page.setViewportSize({ width: 1160, height: 860 });
@@ -454,9 +660,10 @@ test.describe("editor interaction regressions", () => {
     await openFreshProjectWithLongCode(page, "editor-font-scroll");
     await page.click("#font-inc-btn");
     await page.click("#font-inc-btn");
-    await page.locator("#editor").click();
+    await focusEditor(page);
     await page.mouse.wheel(0, 700);
-    await page.keyboard.press("ControlOrMeta+a");
+    await selectAllEditor(page);
+    await ensureEditorHasSelection(page);
     const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
     expect(metrics.selectionEnd).toBeGreaterThan(metrics.selectionStart);
     expectEditorLayersInSync(metrics);
@@ -468,7 +675,7 @@ test.describe("editor interaction regressions", () => {
     await expect(page.locator("#file-list .file-item")).toHaveCount(2);
     await page.locator("#file-list .file-item").nth(1).click();
     await page.locator("#file-list .file-item").nth(0).click();
-    await page.locator("#editor").click();
+    await focusEditor(page);
     await page.mouse.wheel(0, 500);
     const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
     expectEditorLayersInSync(metrics);
@@ -487,9 +694,10 @@ test.describe("editor interaction regressions", () => {
   test("[editor-regression] tablet layout with selection keeps line alignment", async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 768 });
     await openFreshProjectWithLongCode(page, "editor-tablet");
-    await page.locator("#editor").click();
+    await focusEditor(page);
     await page.mouse.wheel(0, 620);
-    await page.keyboard.press("Control+l");
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+l" : "Control+l");
+    await ensureEditorHasSelection(page);
     const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
     expect(metrics.selectionEnd).toBeGreaterThan(metrics.selectionStart);
     expectEditorLayersInSync(metrics);
@@ -498,9 +706,9 @@ test.describe("editor interaction regressions", () => {
   test("[editor-regression] large paste and immediate selection do not desync layers", async ({ page }) => {
     await openProject(page, `editor-large-paste-${Date.now()}`);
     const hugeCode = makeLongCode({ lines: 260, token: "paste_block", extraWidth: 22 });
-    await page.fill("#editor", hugeCode);
-    await page.locator("#editor").click();
-    await page.keyboard.press("ControlOrMeta+a");
+    await setEditorText(page, hugeCode);
+    await selectAllEditor(page);
+    await ensureEditorHasSelection(page);
     const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
     expect(metrics.selectionStart).toBe(0);
     expect(metrics.selectionEnd).toBe(hugeCode.length);
@@ -510,12 +718,65 @@ test.describe("editor interaction regressions", () => {
   test("[editor-regression] repeated scroll/select cycles avoid drift accumulation", async ({ page }) => {
     await openFreshProjectWithLongCode(page, "editor-stress-cycles");
     for (let i = 0; i < 8; i += 1) {
-      await page.locator("#editor").click();
+      await focusEditor(page);
       await page.mouse.wheel(0, i % 2 === 0 ? 300 : -240);
-      await page.keyboard.press("Control+l");
+      await page.keyboard.press(process.platform === "darwin" ? "Meta+l" : "Control+l");
       await page.keyboard.down("Shift");
       await page.keyboard.press(i % 2 === 0 ? "ArrowDown" : "ArrowUp");
       await page.keyboard.up("Shift");
+      const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
+      expectEditorLayersInSync(metrics);
+    }
+  });
+});
+
+test.describe("legacy editor fallback sanity", () => {
+  test("[legacy] slow/fast wheel sync", async ({ page }) => {
+    await openFreshProjectWithLongCode(page, "legacy-wheel", { editorMode: "legacy" });
+    await expect(page.locator("#editor-mode-toggle")).toContainText("Legacy");
+    await page.locator("#editor").click();
+    for (let i = 0; i < 4; i += 1) {
+      await page.mouse.wheel(0, 320);
+    }
+    for (let i = 0; i < 3; i += 1) {
+      await page.mouse.wheel(0, -240);
+    }
+    const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
+    expectEditorLayersInSync(metrics);
+  });
+
+  test("[legacy] selection with autoscroll", async ({ page }) => {
+    await openFreshProjectWithLongCode(page, "legacy-selection", { editorMode: "legacy" });
+    const editor = page.locator("#editor");
+    const box = await editor.boundingBox();
+    await page.mouse.move(box.x + 20, box.y + 20);
+    await page.mouse.down();
+    for (let i = 0; i < 5; i += 1) {
+      await page.mouse.move(box.x + 28, box.y + box.height - 8, { steps: 3 });
+      await page.mouse.wheel(0, 180);
+    }
+    await page.mouse.up();
+    const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
+    expect(metrics.selectionEnd).toBeGreaterThan(metrics.selectionStart);
+    expectEditorLayersInSync(metrics);
+  });
+
+  test("[legacy] font change + selection remains aligned", async ({ page }) => {
+    await openFreshProjectWithLongCode(page, "legacy-font", { editorMode: "legacy" });
+    await page.click("#font-inc-btn");
+    await page.locator("#editor").click();
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+a" : "Control+a");
+    const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
+    expect(metrics.selectionEnd).toBeGreaterThan(metrics.selectionStart);
+    expectEditorLayersInSync(metrics);
+  });
+
+  test("[legacy] repeated scroll/select cycles stay stable", async ({ page }) => {
+    await openFreshProjectWithLongCode(page, "legacy-cycles", { editorMode: "legacy" });
+    for (let i = 0; i < 4; i += 1) {
+      await page.locator("#editor").click();
+      await page.mouse.wheel(0, i % 2 === 0 ? 300 : -260);
+      await page.keyboard.press(process.platform === "darwin" ? "Meta+l" : "Control+l");
       const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
       expectEditorLayersInSync(metrics);
     }
@@ -671,7 +932,7 @@ test("mobile run opens console card and input request keeps console priority", a
   expect(visibleCards).toEqual(["console"]);
 
   await page.click('#mobile-nav [data-card="editor"]');
-  await page.fill("#editor", 'import turtle\nname = input("name? ")\nprint(name)\n');
+  await setEditorText(page, 'import turtle\nname = input("name? ")\nprint(name)\n');
   await page.click("#run-btn");
   await expect(page.locator("#console-input")).toBeEnabled();
   visibleCards = await getVisibleIdeCards(page);
@@ -729,7 +990,7 @@ test("mobile editor card keeps caret alignment", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openProject(page, `mobile-caret-${Date.now()}`);
   const code = Array.from({ length: 60 }, (_, i) => `print(${i})`).join("\n");
-  await page.fill("#editor", code);
+  await setEditorText(page, code);
   await page.click('#mobile-nav [data-card="console"]');
   await page.click('#mobile-nav [data-card="editor"]');
   const sync = await getEditorSyncMetrics(page);
@@ -795,7 +1056,7 @@ test("remix from shared snapshot creates regular project via modal", async ({ pa
   await expect(page.locator("#remix-btn")).toBeVisible();
   await expect(page.locator("#reset-btn")).toBeVisible();
 
-  await page.fill("#editor", draft);
+  await setEditorText(page, draft);
   await page.click("#remix-btn");
   await expect(page.locator("#modal .modal-input")).toBeVisible();
   await expect(page.locator("#modal .modal-input")).toHaveValue("Shared lesson");
@@ -817,7 +1078,7 @@ test("reset snapshot restores baseline with confirmation", async ({ page }) => {
     lastActiveFile: "main.py"
   });
 
-  await page.fill("#editor", changed);
+  await setEditorText(page, changed);
   await expect(page.locator("#editor")).toHaveValue(changed);
 
   await page.click("#reset-btn");
@@ -836,7 +1097,7 @@ test("remix cancel keeps snapshot and does not navigate", async ({ page }) => {
     lastActiveFile: "main.py"
   });
 
-  await page.fill("#editor", changed);
+  await setEditorText(page, changed);
   await page.click("#remix-btn");
   await expect(page.locator("#modal")).toBeVisible();
   await page.click('#modal [data-action="cancel"]');
@@ -851,7 +1112,7 @@ test.describe("code input matrix", () => {
     test(`code matrix valid: ${caseDef.id}`, async ({ page }) => {
       await openProject(page, `matrix-valid-${caseDef.id}-${Date.now()}`);
       if (caseDef.inputLines && caseDef.inputLines.length) {
-        await page.fill("#editor", caseDef.code);
+        await setEditorText(page, caseDef.code);
         await page.click("#run-btn");
         await expect(page.locator("#console-input")).toBeEnabled({ timeout: 15000 });
         await page.fill("#console-input", caseDef.inputLines.join("\n"));

@@ -2,6 +2,13 @@ import { gzipSync, gunzipSync, unzipSync } from "./skulpt-fflate.esm.js";
 import { mergeUniqueIds } from "./utils/recent-utils.js";
 import { getBaseName, createNumberedImportName } from "./utils/import-utils.js";
 import { cloneFilesForProject, resolveLastActiveFile } from "./utils/remix-utils.js";
+import { createEditorAdapter } from "./editor-adapter-factory.js";
+import {
+  DEFAULT_EDITOR_MODE,
+  EDITOR_MODE_STORAGE_KEY,
+  normalizeEditorMode,
+  resolveEditorMode
+} from "./utils/editor-mode-utils.js";
 
 const CONFIG = {
   RUN_TIMEOUT_MS: 60000,
@@ -102,6 +109,8 @@ const IMAGE_ASSET_EXTENSIONS = new Set([
 const state = {
   db: null,
   mode: "landing",
+  editorMode: DEFAULT_EDITOR_MODE,
+  editorAdapter: null,
   uiCard: "editor",
   project: null,
   snapshot: null,
@@ -172,6 +181,7 @@ const els = {
   wrapBtn: document.getElementById("wrap-btn"),
   fontDecBtn: document.getElementById("font-dec-btn"),
   fontIncBtn: document.getElementById("font-inc-btn"),
+  editorModeToggle: document.getElementById("editor-mode-toggle"),
   hotkeysBtn: document.getElementById("hotkeys-btn"),
   turtleSpeedRange: document.getElementById("turtle-speed"),
   turtleSpeedLabel: document.getElementById("turtle-speed-label"),
@@ -192,6 +202,7 @@ const els = {
   lineNumbersContent: null,
   editorHighlight: document.getElementById("editor-highlight"),
   editor: document.getElementById("editor"),
+  editorStack: document.querySelector(".editor-stack"),
   editorWrap: document.querySelector(".editor-wrap"),
   importInput: document.getElementById("import-input"),
   consoleOutput: document.getElementById("console-output"),
@@ -328,6 +339,123 @@ function safeLocalSet(key, value) {
   }
 }
 
+function loadEditorMode() {
+  return normalizeEditorMode(safeLocalGet(EDITOR_MODE_STORAGE_KEY), DEFAULT_EDITOR_MODE);
+}
+
+function saveEditorMode(mode) {
+  return safeLocalSet(EDITOR_MODE_STORAGE_KEY, normalizeEditorMode(mode, DEFAULT_EDITOR_MODE));
+}
+
+function isCm6Mode() {
+  return state.editorMode === "cm6";
+}
+
+function updateEditorModeToggleLabel() {
+  if (!els.editorModeToggle) {
+    return;
+  }
+  const label = state.editorMode === "cm6" ? "Редактор: CM6" : "Редактор: Legacy";
+  els.editorModeToggle.textContent = label;
+  els.editorModeToggle.setAttribute("aria-label", label);
+  els.editorModeToggle.setAttribute("aria-pressed", state.editorMode === "legacy" ? "true" : "false");
+}
+
+function forwardEditorKeydownToLegacy(event) {
+  if (!event || !els.editor) {
+    return false;
+  }
+  const forwarded = new KeyboardEvent("keydown", {
+    key: event.key,
+    code: event.code,
+    ctrlKey: event.ctrlKey,
+    shiftKey: event.shiftKey,
+    altKey: event.altKey,
+    metaKey: event.metaKey,
+    bubbles: true,
+    cancelable: true
+  });
+  const handled = !els.editor.dispatchEvent(forwarded);
+  if (handled) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  return handled;
+}
+
+function initEditorAdapter(mode, { preserve = false } = {}) {
+  const nextMode = normalizeEditorMode(mode, DEFAULT_EDITOR_MODE);
+  const preservedValue = preserve && state.editorAdapter
+    ? state.editorAdapter.getValue()
+    : (els.editor?.value || "");
+  const preservedSelection = preserve && state.editorAdapter
+    ? state.editorAdapter.getSelection()
+    : {
+      start: Number(els.editor?.selectionStart || 0),
+      end: Number(els.editor?.selectionEnd || 0)
+    };
+  const preservedScroll = preserve && state.editorAdapter
+    ? state.editorAdapter.getScroll()
+    : {
+      top: Number(els.editor?.scrollTop || 0),
+      left: Number(els.editor?.scrollLeft || 0)
+    };
+  const readOnly = Boolean(els.editor?.readOnly);
+
+  if (state.editorAdapter) {
+    state.editorAdapter.destroy();
+    state.editorAdapter = null;
+  }
+
+  state.editorMode = nextMode;
+  state.editorAdapter = createEditorAdapter(nextMode, {
+    editor: els.editor,
+    editorStack: els.editorStack,
+    editorWrap: els.editorWrap,
+    editorHighlight: els.editorHighlight,
+    lineNumbers: els.lineNumbers,
+    forwardKeydown: forwardEditorKeydownToLegacy
+  });
+  state.editorAdapter.init({
+    initialValue: preservedValue,
+    readOnly,
+    settings: state.settings
+  });
+  state.editorAdapter.setSelection(preservedSelection);
+  state.editorAdapter.setScroll(preservedScroll);
+  updateEditorModeToggleLabel();
+}
+
+function switchEditorMode(mode, { persist = true, showMessage = true } = {}) {
+  const nextMode = normalizeEditorMode(mode, DEFAULT_EDITOR_MODE);
+  if (state.editorAdapter && state.editorMode === nextMode) {
+    if (persist) {
+      saveEditorMode(nextMode);
+    }
+    updateEditorModeToggleLabel();
+    return;
+  }
+  initEditorAdapter(nextMode, { preserve: true });
+  if (persist) {
+    saveEditorMode(nextMode);
+  }
+  applyEditorSettings();
+  refreshEditorDecorations();
+  syncEditorScroll();
+  if (showMessage) {
+    showToast(nextMode === "cm6" ? "Активирован редактор CM6." : "Активирован Legacy-редактор.");
+  }
+}
+
+function applyEditorModeFromQuery(query) {
+  const nextMode = resolveEditorMode(query, loadEditorMode(), DEFAULT_EDITOR_MODE);
+  if (!state.editorAdapter || state.editorMode !== nextMode) {
+    switchEditorMode(nextMode, { persist: false, showMessage: false });
+  } else {
+    updateEditorModeToggleLabel();
+  }
+}
+
 init();
 
 /**
@@ -344,6 +472,8 @@ async function init() {
   if (!state.db) {
     showToast("Storage fallback: changes will not persist in this browser.");
   }
+  state.editorMode = loadEditorMode();
+  initEditorAdapter(state.editorMode);
   loadSettings();
   /**
    * Binds all UI event handlers: buttons, hotkeys, editor, file list, etc.
@@ -409,6 +539,12 @@ function bindUi() {
   }
   if (els.fontIncBtn) {
     els.fontIncBtn.addEventListener("click", () => changeEditorFontSize(EDITOR_FONT_STEP));
+  }
+  if (els.editorModeToggle) {
+    els.editorModeToggle.addEventListener("click", () => {
+      const nextMode = state.editorMode === "cm6" ? "legacy" : "cm6";
+      switchEditorMode(nextMode, { persist: true, showMessage: true });
+    });
   }
   if (els.hotkeysBtn) {
     els.hotkeysBtn.addEventListener("click", showHotkeysModal);
@@ -483,7 +619,11 @@ function bindUi() {
     // Focus on editor (Alt+1)
     if (event.altKey && event.key === "1") {
       event.preventDefault();
-      els.editor.focus();
+      if (state.editorAdapter) {
+        state.editorAdapter.focus();
+      } else {
+        els.editor.focus();
+      }
     }
     // Focus on console input (Alt+2)
     if (event.altKey && event.key === "2") {
@@ -780,6 +920,8 @@ function showView(view) {
  */
 async function router() {
   const { route, id, query } = parseHash();
+  const routeQuery = query || new URLSearchParams();
+  applyEditorModeFromQuery(routeQuery);
   if (route === "landing") {
     showView("landing");
     await renderRecent();
@@ -815,7 +957,7 @@ async function router() {
 function parseHash() {
   const hash = location.hash.replace(/^#/, "");
   if (!hash || hash === "/") {
-    return { route: "landing" };
+    return { route: "landing", query: new URLSearchParams() };
   }
 
   const [pathPart, queryString] = hash.split("?");
@@ -832,7 +974,7 @@ function parseHash() {
   if (parts[0] === "embed") {
     return { route: "embed", query };
   }
-  return { route: "landing" };
+  return { route: "landing", query };
 }
 function resetEmbed() {
   state.embed = {
@@ -1119,6 +1261,9 @@ function setMode(mode) {
 
   const disableEdits = state.embed.readonly;
   els.editor.readOnly = disableEdits;
+  if (state.editorAdapter) {
+    state.editorAdapter.setReadOnly(disableEdits);
+  }
   els.fileCreate.disabled = disableEdits;
   els.fileRename.disabled = disableEdits;
   els.fileDuplicate.disabled = disableEdits;
@@ -1244,8 +1389,14 @@ function updateFileActionState() {
 
 function updateEditorContent() {
   const file = getFileByName(state.activeFile);
-  els.editor.value = file ? file.content : "";
-  els.editor.focus();
+  const next = file ? file.content : "";
+  if (state.editorAdapter) {
+    state.editorAdapter.setValue(next);
+    state.editorAdapter.focus();
+  } else {
+    els.editor.value = next;
+    els.editor.focus();
+  }
   refreshEditorDecorations();
   syncEditorScroll();
 }
@@ -1430,6 +1581,9 @@ function ensureLineNumbersContentElement() {
 }
 
 function syncEditorScroll() {
+  if (isCm6Mode()) {
+    return;
+  }
   if (!els.editor || !els.editorHighlight || !els.lineNumbers) {
     return;
   }
@@ -1479,6 +1633,16 @@ function scrollEditorToLine(lineNumber) {
   if (!els.editor) {
     return;
   }
+  if (isCm6Mode() && state.editorAdapter) {
+    const line = Math.max(1, Math.floor(Number(lineNumber) || 1));
+    const rows = (els.editor.value || "").split("\n");
+    let from = 0;
+    for (let i = 0; i < Math.min(line - 1, rows.length); i += 1) {
+      from += rows[i].length + 1;
+    }
+    state.editorAdapter.setSelection({ start: from, end: from });
+    return;
+  }
   const computed = getComputedStyle(els.editor);
   const lineHeight = Number.parseFloat(computed.lineHeight) || 22;
   const paddingTop = Number.parseFloat(computed.paddingTop) || 0;
@@ -1493,6 +1657,9 @@ function scrollEditorToLine(lineNumber) {
 }
 
 function updateLineHighlightPosition() {
+  if (isCm6Mode()) {
+    return;
+  }
   if (!els.editor || !els.lineHighlight || !state.stepLine) {
     return;
   }
@@ -1508,6 +1675,16 @@ function updateLineHighlightPosition() {
 }
 
 function refreshEditorDecorations() {
+  if (isCm6Mode()) {
+    if (els.editorHighlight) {
+      els.editorHighlight.textContent = "";
+    }
+    const lineNumbersContent = ensureLineNumbersContentElement();
+    if (lineNumbersContent) {
+      lineNumbersContent.textContent = "";
+    }
+    return;
+  }
   if (!els.editorHighlight || !els.lineNumbers) {
     return;
   }
@@ -2050,12 +2227,22 @@ function applyEditorSettings() {
   state.settings.editorFontSize = fontSize;
   if (els.editorWrap) {
     els.editorWrap.style.setProperty("--code-font-size", `${fontSize}px`);
+    els.editorWrap.style.setProperty("--editor-font-size", String(fontSize));
   }
-  els.editor.style.tabSize = state.settings.tabSize;
-  els.editor.wrap = state.settings.wordWrap ? "soft" : "off";
-  els.editor.style.whiteSpace = state.settings.wordWrap ? "pre-wrap" : "pre";
-  els.editor.style.overflowWrap = state.settings.wordWrap ? "break-word" : "normal";
-  els.editor.style.wordBreak = state.settings.wordWrap ? "break-word" : "normal";
+  if (els.editor) {
+    els.editor.style.tabSize = state.settings.tabSize;
+    els.editor.wrap = state.settings.wordWrap ? "soft" : "off";
+    els.editor.style.whiteSpace = state.settings.wordWrap ? "pre-wrap" : "pre";
+    els.editor.style.overflowWrap = state.settings.wordWrap ? "break-word" : "normal";
+    els.editor.style.wordBreak = state.settings.wordWrap ? "break-word" : "normal";
+  }
+  if (state.editorAdapter) {
+    state.editorAdapter.applySettings({
+      tabSize: state.settings.tabSize,
+      wordWrap: state.settings.wordWrap,
+      editorFontSize: fontSize
+    });
+  }
   els.tabSizeBtn.textContent = `Таб: ${state.settings.tabSize}`;
   els.wrapBtn.textContent = `Перенос: ${state.settings.wordWrap ? "Вкл" : "Выкл"}`;
   if (els.turtleSpeedLabel) {
@@ -2064,7 +2251,7 @@ function applyEditorSettings() {
   if (els.turtleSpeedRange) {
     els.turtleSpeedRange.value = String(getTurtleSpeedIndex());
   }
-  if (els.editorHighlight) {
+  if (els.editorHighlight && !isCm6Mode()) {
     els.editorHighlight.style.tabSize = state.settings.tabSize;
     els.editorHighlight.style.whiteSpace = state.settings.wordWrap ? "pre-wrap" : "pre";
     els.editorHighlight.style.overflowWrap = state.settings.wordWrap ? "break-word" : "normal";

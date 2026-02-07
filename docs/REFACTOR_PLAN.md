@@ -51,3 +51,16 @@
 - `editor-regression` обязателен как release gate.
 - Любая деградация line mapping и визуальной синхронизации считается регрессией.
 - Любой risky change сопровождается обновлением тестов и документации.
+
+## Текущий статус (2026-02-07)
+
+1. Phase 1 (dual-run foundation) внедрён:
+   - добавлен adapter-layer (`cm6` + `legacy`) и factory,
+   - добавлен переключатель `Редактор: CM6/Legacy`,
+   - режим редактора резолвится из `query -> storage -> default`.
+2. Тестовый контур расширен:
+   - добавлены editor mode tests,
+   - расширен `editor-regression` набор,
+   - добавлен sanity-набор для legacy fallback.
+3. Linux matrix стабилен на Chromium/Firefox.
+4. WebKit остаётся release-gated через отдельный macOS job в CI; локально на Linux возможны инфраструктурные `WebKit internal error` при `page.goto`.

@@ -103,3 +103,39 @@ Acceptance:
 2. Полный parity функционала редактора.
 3. Обновлённые тесты и CI-валидаторы.
 4. Документированный план и решение по удалению legacy.
+
+## Progress snapshot (2026-02-07)
+
+### Done
+
+1. Добавлены модули:
+   - `assets/cm6-editor-adapter.js`
+   - `assets/legacy-editor-adapter.js`
+   - `assets/editor-adapter-factory.js`
+   - `assets/utils/editor-mode-utils.js`
+2. Добавлен локальный CM6 bundle pipeline:
+   - `scripts/build-cm6-bundle.mjs`
+   - `assets/vendor/cm6/codemirror.bundle.js`
+3. Внедрён UI toggle режима редактора в `editor-controls`.
+4. В runtime добавлены:
+   - `state.editorMode`,
+   - переключение `cm6 <-> legacy` с сохранением текста/selection/scroll,
+   - persistence режима в localStorage (`shp-editor-mode`),
+   - query override (`?editor=cm6|legacy`).
+5. Расширены e2e-тесты:
+   - editor mode tests,
+   - расширенный `[editor-regression]`,
+   - `legacy editor fallback sanity`.
+6. CI-структура на matrix:
+   - Linux: Chromium + Firefox,
+   - отдельный macOS job для WebKit.
+
+### In progress
+
+1. Дополнительный parity-прогон полного `tests/ide.spec.js` для CM6 default.
+2. Финальная сверка mirrored runtime (`assets/app.js`) и primary runtime (`assets/skulpt-app.js`) перед фиксацией этапа.
+
+### Notes
+
+1. Локальный Linux прогон WebKit может падать с `WebKit encountered an internal error` до выполнения самих ассертов.
+2. Релизный gate для WebKit считается по macOS CI job, не по локальному Linux окружению.
