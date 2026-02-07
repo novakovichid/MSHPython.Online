@@ -12,16 +12,72 @@ import {
 } from "@codemirror/view";
 import {
   bracketMatching,
-  defaultHighlightStyle,
+  HighlightStyle,
   indentOnInput,
   syntaxHighlighting
 } from "@codemirror/language";
 import { history, historyKeymap, defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { searchKeymap } from "@codemirror/search";
 import { python } from "@codemirror/lang-python";
+import { tags } from "@lezer/highlight";
 
 const DEFAULT_TAB_SIZE = 4;
 const DEFAULT_FONT_SIZE = 14;
+
+const legacyHighlightStyle = HighlightStyle.define([
+  {
+    tag: [
+      tags.keyword,
+      tags.operatorKeyword,
+      tags.controlKeyword,
+      tags.definitionKeyword,
+      tags.moduleKeyword,
+      tags.modifier
+    ],
+    color: "#C800A4",
+    fontWeight: "400"
+  },
+  {
+    tag: [
+      tags.atom,
+      tags.bool,
+      tags.null
+    ],
+    color: "#C800A4"
+  },
+  {
+    tag: [
+      tags.string,
+      tags.special(tags.string),
+      tags.regexp
+    ],
+    color: "#DF0002"
+  },
+  {
+    tag: [
+      tags.comment,
+      tags.lineComment,
+      tags.blockComment
+    ],
+    color: "#008A00",
+    fontStyle: "normal"
+  },
+  {
+    tag: [
+      tags.number,
+      tags.integer,
+      tags.float
+    ],
+    color: "#3A00DC"
+  },
+  {
+    tag: [
+      tags.standard(tags.name),
+      tags.standard(tags.variableName)
+    ],
+    color: "#3A00DC"
+  }
+]);
 
 function clampSelection(value, max) {
   const next = Number(value) || 0;
@@ -106,7 +162,7 @@ export function createCodeMirrorEditor({
     rectangularSelection(),
     crosshairCursor(),
     highlightActiveLine(),
-    syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+    syntaxHighlighting(legacyHighlightStyle, { fallback: true }),
     languageCompartment.of(python()),
     tabSizeCompartment.of(getTabExtension(settingsState.tabSize)),
     wrapCompartment.of(getWrapExtension(settingsState.wordWrap)),

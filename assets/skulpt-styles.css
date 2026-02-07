@@ -619,7 +619,7 @@ body {
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
-  color: var(--text);
+  color: #000000;
   white-space: pre;
   overflow-wrap: normal;
   word-break: normal;
@@ -631,25 +631,25 @@ body {
 }
 
 .editor-highlight .token.keyword {
-  color: #ff00b7;
+  color: #c800a4;
   font-weight: 400;
 }
 
 .editor-highlight .token.string {
-  color: #ff1f1f;
+  color: #df0002;
 }
 
 .editor-highlight .token.comment {
-  color: #00a600;
+  color: #008a00;
   font-style: normal;
 }
 
 .editor-highlight .token.number {
-  color: #3b43ff;
+  color: #3a00dc;
 }
 
 .editor-highlight .token.builtin {
-  color: #111111;
+  color: #3a00dc;
 }
 
 .editor-toolbar {
@@ -764,6 +764,7 @@ body {
 .cm6-editor-host .cm-editor {
   height: 100%;
   background: transparent;
+  color: #000000;
   font-family: var(--code-font);
   font-size: calc(var(--editor-font-size, 14) * 1px);
   line-height: var(--code-line-height);
@@ -780,6 +781,10 @@ body {
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
+}
+
+.cm6-editor-host .cm-content {
+  caret-color: #000000;
 }
 
 .cm6-editor-host .cm-gutters {
