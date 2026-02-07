@@ -456,7 +456,7 @@ test.describe("editor interaction regressions", () => {
     await page.click("#font-inc-btn");
     await page.locator("#editor").click();
     await page.mouse.wheel(0, 700);
-    await page.keyboard.press("Control+a");
+    await page.keyboard.press("ControlOrMeta+a");
     const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
     expect(metrics.selectionEnd).toBeGreaterThan(metrics.selectionStart);
     expectEditorLayersInSync(metrics);
@@ -500,7 +500,7 @@ test.describe("editor interaction regressions", () => {
     const hugeCode = makeLongCode({ lines: 260, token: "paste_block", extraWidth: 22 });
     await page.fill("#editor", hugeCode);
     await page.locator("#editor").click();
-    await page.keyboard.press("Control+a");
+    await page.keyboard.press("ControlOrMeta+a");
     const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
     expect(metrics.selectionStart).toBe(0);
     expect(metrics.selectionEnd).toBe(hugeCode.length);
