@@ -1,4 +1,4 @@
-import { createCodeMirrorEditor } from "./vendor/cm6/codemirror.bundle.js";
+import { createCodeMirrorEditor } from "../vendor/cm6/codemirror.bundle.js";
 
 function noop() { }
 
@@ -15,7 +15,7 @@ export function createCm6EditorAdapter({
   editorWrap,
   editorHighlight,
   lineNumbers,
-  forwardKeydown
+  onShortcutKeydown
 }) {
   const changeHandlers = new Set();
   const scrollHandlers = new Set();
@@ -174,15 +174,11 @@ export function createCm6EditorAdapter({
           suppressMirrorSync = false;
           emit(scrollHandlers, scroll);
         },
-        onForwardKeydown(event) {
-          if (typeof forwardKeydown !== "function") {
+        onShortcutKeydown(event) {
+          if (typeof onShortcutKeydown !== "function") {
             return false;
           }
-          const handled = Boolean(forwardKeydown(event));
-          if (handled) {
-            syncCm6FromMirror();
-          }
-          return handled;
+          return Boolean(onShortcutKeydown(event));
         }
       });
       syncMirrorFromCm6();

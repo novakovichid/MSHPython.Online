@@ -117,6 +117,8 @@ npx playwright test tests/ide.spec.js --grep "remix|snapshot"
 - `index.html` - основной интерфейс.
 - `assets/skulpt-app.js` - основной frontend runtime.
 - `assets/skulpt-styles.css` - основные стили интерфейса.
+- `assets/editor-core/` - shared editor core (adapter factory, CM6 adapter, command engine).
+- `assets/editor-legacy/` - legacy-only editor runtime (legacy adapter, keyboard/decorations path).
 - `assets/archive/` - архив устаревших/неактуальных артефактов (без подключения в runtime).
 - `assets/utils/*.js` - утилиты.
 - `assets/vendor/skulpt/` - локальный runtime Skulpt.

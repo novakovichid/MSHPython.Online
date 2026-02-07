@@ -2,7 +2,13 @@ import { gzipSync, gunzipSync, unzipSync } from "./skulpt-fflate.esm.js";
 import { mergeUniqueIds } from "./utils/recent-utils.js";
 import { getBaseName, createNumberedImportName } from "./utils/import-utils.js";
 import { cloneFilesForProject, resolveLastActiveFile } from "./utils/remix-utils.js";
-import { createEditorAdapter } from "./editor-adapter-factory.js";
+import { createEditorAdapter } from "./editor-core/editor-adapter-factory.js";
+import { runEditorCommand } from "./editor-core/editor-command-runner.js";
+import { resolveEditorShortcut } from "./editor-core/editor-shortcuts.js";
+import { createLegacyEditorDecorations } from "./editor-legacy/legacy-editor-decorations.js";
+import { handleLegacyEditorKeydown } from "./editor-legacy/legacy-editor-keydown.js";
+import { buildTurtleImagePatchCode } from "./compat/turtle-image-patch.js";
+import { detectTurtleUsage, getTurtlePatchAssetNames } from "./utils/turtle-runtime-utils.js";
 import {
   DEFAULT_EDITOR_MODE,
   EDITOR_MODE_STORAGE_KEY,
@@ -17,7 +23,8 @@ const CONFIG = {
   MAX_TOTAL_TEXT_BYTES: 250000,
   MAX_SINGLE_FILE_BYTES: 50000,
   TAB_SIZE: 4,
-  WORD_WRAP: false
+  WORD_WRAP: false,
+  ENABLE_TURTLE_IMAGE_COMPAT_PATCH: false
 };
 const MAIN_FILE = "main.py";
 const EDITOR_FONT_MIN = 12;
@@ -111,6 +118,7 @@ const state = {
   mode: "landing",
   editorMode: DEFAULT_EDITOR_MODE,
   editorAdapter: null,
+  legacyDecorations: null,
   uiCard: "editor",
   project: null,
   snapshot: null,
@@ -199,7 +207,6 @@ const els = {
   assetInput: document.getElementById("asset-input"), // Законсервировано - см. комментарий перед onAssetUpload()
   fileTabs: document.getElementById("file-tabs"),
   lineNumbers: document.getElementById("line-numbers"),
-  lineNumbersContent: null,
   editorHighlight: document.getElementById("editor-highlight"),
   editor: document.getElementById("editor"),
   editorStack: document.querySelector(".editor-stack"),
@@ -351,6 +358,54 @@ function isCm6Mode() {
   return state.editorMode === "cm6";
 }
 
+function getEditorValue() {
+  if (state.editorAdapter) {
+    return state.editorAdapter.getValue();
+  }
+  return els.editor?.value || "";
+}
+
+function getEditorSelection() {
+  if (state.editorAdapter) {
+    return state.editorAdapter.getSelection();
+  }
+  return {
+    start: Number(els.editor?.selectionStart || 0),
+    end: Number(els.editor?.selectionEnd || 0)
+  };
+}
+
+function getEditorScroll() {
+  if (state.editorAdapter) {
+    return state.editorAdapter.getScroll();
+  }
+  return {
+    top: Number(els.editor?.scrollTop || 0),
+    left: Number(els.editor?.scrollLeft || 0)
+  };
+}
+
+function dispatchMirrorEditorEvent(type) {
+  if (!els.editor) {
+    return;
+  }
+  els.editor.dispatchEvent(new Event(type, { bubbles: true }));
+}
+
+function ensureLegacyDecorations() {
+  if (state.legacyDecorations) {
+    return state.legacyDecorations;
+  }
+  state.legacyDecorations = createLegacyEditorDecorations({
+    editor: els.editor,
+    editorHighlight: els.editorHighlight,
+    lineNumbers: els.lineNumbers,
+    getIsActive: () => !isCm6Mode(),
+    getEditorValue
+  });
+  return state.legacyDecorations;
+}
+
 function updateEditorModeToggleLabel() {
   if (!els.editorModeToggle) {
     return;
@@ -361,45 +416,43 @@ function updateEditorModeToggleLabel() {
   els.editorModeToggle.setAttribute("aria-pressed", state.editorMode === "legacy" ? "true" : "false");
 }
 
-function forwardEditorKeydownToLegacy(event) {
-  if (!event || !els.editor) {
+function handleEditorShortcutKeydown(event) {
+  const command = resolveEditorShortcut(event);
+  if (!command) {
     return false;
   }
-  const forwarded = new KeyboardEvent("keydown", {
-    key: event.key,
-    code: event.code,
-    ctrlKey: event.ctrlKey,
-    shiftKey: event.shiftKey,
-    altKey: event.altKey,
-    metaKey: event.metaKey,
-    bubbles: true,
-    cancelable: true
+
+  const result = runEditorCommand({
+    adapter: state.editorAdapter,
+    command,
+    tabSize: state.settings.tabSize
   });
-  const handled = !els.editor.dispatchEvent(forwarded);
-  if (handled) {
-    event.preventDefault();
-    event.stopPropagation();
+  if (!result.handled) {
+    return false;
   }
-  return handled;
+
+  if (event && typeof event.preventDefault === "function") {
+    event.preventDefault();
+  }
+  if (result.valueChanged) {
+    dispatchMirrorEditorEvent("input");
+  } else if (result.selectionChanged) {
+    dispatchMirrorEditorEvent("select");
+  }
+  return true;
 }
 
 function initEditorAdapter(mode, { preserve = false } = {}) {
   const nextMode = normalizeEditorMode(mode, DEFAULT_EDITOR_MODE);
   const preservedValue = preserve && state.editorAdapter
     ? state.editorAdapter.getValue()
-    : (els.editor?.value || "");
+    : getEditorValue();
   const preservedSelection = preserve && state.editorAdapter
     ? state.editorAdapter.getSelection()
-    : {
-      start: Number(els.editor?.selectionStart || 0),
-      end: Number(els.editor?.selectionEnd || 0)
-    };
+    : getEditorSelection();
   const preservedScroll = preserve && state.editorAdapter
     ? state.editorAdapter.getScroll()
-    : {
-      top: Number(els.editor?.scrollTop || 0),
-      left: Number(els.editor?.scrollLeft || 0)
-    };
+    : getEditorScroll();
   const readOnly = Boolean(els.editor?.readOnly);
 
   if (state.editorAdapter) {
@@ -414,7 +467,7 @@ function initEditorAdapter(mode, { preserve = false } = {}) {
     editorWrap: els.editorWrap,
     editorHighlight: els.editorHighlight,
     lineNumbers: els.lineNumbers,
-    forwardKeydown: forwardEditorKeydownToLegacy
+    onShortcutKeydown: handleEditorShortcutKeydown
   });
   state.editorAdapter.init({
     initialValue: preservedValue,
@@ -473,6 +526,7 @@ async function init() {
     showToast("Storage fallback: changes will not persist in this browser.");
   }
   state.editorMode = loadEditorMode();
+  ensureLegacyDecorations();
   initEditorAdapter(state.editorMode);
   loadSettings();
   /**
@@ -1401,14 +1455,16 @@ function updateEditorContent() {
   syncEditorScroll();
 }
 
-function onEditorInput() {
+function onEditorInput(event) {
   const file = getFileByName(state.activeFile);
   if (!file || state.embed.readonly) {
     refreshEditorDecorations();
     return;
   }
 
-  const content = els.editor.value;
+  const content = event?.target === els.editor
+    ? String(els.editor?.value || "")
+    : getEditorValue();
   if (state.mode === "project") {
     file.content = content;
     scheduleSave();
@@ -1420,222 +1476,50 @@ function onEditorInput() {
 }
 
 function onEditorKeydown(event) {
-  const tabSize = state.settings.tabSize;
-  const spaces = " ".repeat(tabSize);
-  const start = els.editor.selectionStart;
-  const end = els.editor.selectionEnd;
-  const value = els.editor.value;
-  
-  // Tab indentation
-  if (event.key === "Tab") {
-    event.preventDefault();
-    els.editor.value = value.slice(0, start) + spaces + value.slice(end);
-    els.editor.selectionStart = els.editor.selectionEnd = start + spaces.length;
-    onEditorInput();
+  if (isCm6Mode()) {
     return;
   }
-
-  if (event.key === "Enter") {
-    const before = value.slice(0, start);
-    const lineStart = before.lastIndexOf("\n") + 1;
-    const line = value.slice(lineStart, start);
-    const indentMatch = line.match(/^[ \t]*/);
-    const baseIndent = indentMatch ? indentMatch[0] : "";
-    const trimmed = line.trimEnd();
-    const shouldIndent = trimmed.endsWith(":") || baseIndent.length > 0;
-    if (shouldIndent) {
-      event.preventDefault();
-      const extraIndent = trimmed.endsWith(":") ? spaces : "";
-      const insert = `\n${baseIndent}${extraIndent}`;
-      els.editor.value = value.slice(0, start) + insert + value.slice(end);
-      els.editor.selectionStart = els.editor.selectionEnd = start + insert.length;
-      onEditorInput();
-      return;
+  handleLegacyEditorKeydown({
+    event,
+    adapter: state.editorAdapter,
+    tabSize: state.settings.tabSize,
+    onAfterCommand(result) {
+      if (result.valueChanged) {
+        onEditorInput();
+        return;
+      }
+      refreshEditorDecorations();
+      scheduleEditorScrollSync();
     }
-  }
-
-  // Get current line info
-  const beforeSelection = value.slice(0, start);
-  const lineStart = beforeSelection.lastIndexOf("\n") + 1;
-  const currentLine = value.split("\n")[beforeSelection.split("\n").length - 1];
-  const fullLineStart = start - currentLine.length;
-  const fullLineEnd = fullLineStart + currentLine.length;
-
-  // Alt+/ - Comment/uncomment current line
-  if (event.altKey && event.key === "/") {
-    event.preventDefault();
-    const currentLineNum = value.slice(0, start).split("\n").length - 1;
-    const lines = value.split("\n");
-    const line = lines[currentLineNum];
-    const trimmed = line.trim();
-    
-    if (trimmed.startsWith("#")) {
-      // Uncomment
-      lines[currentLineNum] = line.replace(/^(\s*)#\s?/, "$1");
-    } else if (trimmed) {
-      // Comment
-      lines[currentLineNum] = line.replace(/^(\s*)/, "$1# ");
-    }
-    
-    els.editor.value = lines.join("\n");
-    onEditorInput();
-    return;
-  }
-
-  // Alt+Up - Move line up
-  if (event.altKey && event.key === "ArrowUp") {
-    event.preventDefault();
-    const currentLineNum = value.slice(0, start).split("\n").length - 1;
-    if (currentLineNum === 0) return;
-    
-    const lines = value.split("\n");
-    [lines[currentLineNum - 1], lines[currentLineNum]] = [lines[currentLineNum], lines[currentLineNum - 1]];
-    els.editor.value = lines.join("\n");
-    
-    // Keep cursor at same position relative to text
-    const newStart = start - currentLine.length - 1 - lines[currentLineNum - 1].length - 1;
-    els.editor.selectionStart = els.editor.selectionEnd = newStart;
-    onEditorInput();
-    return;
-  }
-
-  // Alt+Down - Move line down
-  if (event.altKey && event.key === "ArrowDown") {
-    event.preventDefault();
-    const lines = value.split("\n");
-    const currentLineNum = value.slice(0, start).split("\n").length - 1;
-    if (currentLineNum === lines.length - 1) return;
-    
-    [lines[currentLineNum], lines[currentLineNum + 1]] = [lines[currentLineNum + 1], lines[currentLineNum]];
-    els.editor.value = lines.join("\n");
-    
-    // Keep cursor at same position relative to text
-    const newStart = start + lines[currentLineNum + 1].length + 1;
-    els.editor.selectionStart = els.editor.selectionEnd = newStart;
-    onEditorInput();
-    return;
-  }
-
-  // Ctrl+D - Duplicate line
-  if (event.ctrlKey && event.key === "d") {
-    event.preventDefault();
-    const lines = value.split("\n");
-    const currentLineNum = value.slice(0, start).split("\n").length - 1;
-    lines.splice(currentLineNum + 1, 0, lines[currentLineNum]);
-    els.editor.value = lines.join("\n");
-    onEditorInput();
-    return;
-  }
-
-  // Ctrl+Shift+K - Delete line
-  if (event.ctrlKey && event.shiftKey && event.key === "K") {
-    event.preventDefault();
-    const lines = value.split("\n");
-    const currentLineNum = value.slice(0, start).split("\n").length - 1;
-    lines.splice(currentLineNum, 1);
-    els.editor.value = lines.join("\n");
-    
-    // Move cursor to deleted line position or end
-    const newPos = Math.min(start, els.editor.value.length);
-    els.editor.selectionStart = els.editor.selectionEnd = newPos;
-    onEditorInput();
-    return;
-  }
-
-  // Ctrl+L - Select line
-  if (event.ctrlKey && event.key === "l") {
-    event.preventDefault();
-    const currentLineNum = value.slice(0, start).split("\n").length - 1;
-    const lines = value.split("\n");
-    
-    let lineStart = 0;
-    for (let i = 0; i < currentLineNum; i++) {
-      lineStart += lines[i].length + 1; // +1 for newline
-    }
-    const lineEnd = lineStart + lines[currentLineNum].length;
-    
-    els.editor.selectionStart = lineStart;
-    els.editor.selectionEnd = lineEnd;
-    return;
-  }
-}
-
-function ensureLineNumbersContentElement() {
-  if (els.lineNumbersContent && els.lineNumbersContent.isConnected) {
-    return els.lineNumbersContent;
-  }
-  if (!els.lineNumbers) {
-    return null;
-  }
-  const existing = els.lineNumbers.querySelector(".line-numbers-content");
-  if (existing) {
-    els.lineNumbersContent = existing;
-    return existing;
-  }
-  const content = document.createElement("div");
-  content.className = "line-numbers-content";
-  els.lineNumbers.textContent = "";
-  els.lineNumbers.appendChild(content);
-  els.lineNumbersContent = content;
-  return content;
+  });
 }
 
 function syncEditorScroll() {
   if (isCm6Mode()) {
     return;
   }
-  if (!els.editor || !els.editorHighlight || !els.lineNumbers) {
-    return;
-  }
-  const scrollTop = els.editor.scrollTop;
-  const scrollLeft = els.editor.scrollLeft;
-  els.editorHighlight.style.transform = `translate3d(${-scrollLeft}px, ${-scrollTop}px, 0)`;
-  const lineNumbersContent = ensureLineNumbersContentElement();
-  if (lineNumbersContent) {
-    lineNumbersContent.style.transform = `translate3d(0, ${-scrollTop}px, 0)`;
-  }
-  updateLineHighlightPosition();
-}
-
-function ensureLineHighlightElement() {
-  if (els.lineHighlight) {
-    return;
-  }
-  const host = els.editorHighlight ? els.editorHighlight.parentElement : null;
-  if (!host) {
-    return;
-  }
-  const highlight = document.createElement("div");
-  highlight.className = "editor-line-highlight";
-  highlight.style.display = "none";
-  host.insertBefore(highlight, els.editorHighlight);
-  els.lineHighlight = highlight;
+  ensureLegacyDecorations().syncScroll();
 }
 
 function setEditorLineHighlight(lineNumber) {
   if (!Number.isFinite(lineNumber)) {
     return;
   }
-  state.stepLine = Math.max(1, Math.floor(lineNumber));
-  ensureLineHighlightElement();
-  updateLineHighlightPosition();
-  scrollEditorToLine(state.stepLine);
+  if (isCm6Mode()) {
+    scrollEditorToLine(lineNumber);
+    return;
+  }
+  ensureLegacyDecorations().setLineHighlight(lineNumber);
 }
 
 function clearEditorLineHighlight() {
-  state.stepLine = null;
-  if (els.lineHighlight) {
-    els.lineHighlight.style.display = "none";
-  }
+  ensureLegacyDecorations().clearLineHighlight();
 }
 
 function scrollEditorToLine(lineNumber) {
-  if (!els.editor) {
-    return;
-  }
   if (isCm6Mode() && state.editorAdapter) {
     const line = Math.max(1, Math.floor(Number(lineNumber) || 1));
-    const rows = (els.editor.value || "").split("\n");
+    const rows = getEditorValue().split("\n");
     let from = 0;
     for (let i = 0; i < Math.min(line - 1, rows.length); i += 1) {
       from += rows[i].length + 1;
@@ -1643,187 +1527,32 @@ function scrollEditorToLine(lineNumber) {
     state.editorAdapter.setSelection({ start: from, end: from });
     return;
   }
-  const computed = getComputedStyle(els.editor);
-  const lineHeight = Number.parseFloat(computed.lineHeight) || 22;
-  const paddingTop = Number.parseFloat(computed.paddingTop) || 0;
-  const lineTop = paddingTop + (lineNumber - 1) * lineHeight;
-  const viewTop = els.editor.scrollTop;
-  const viewBottom = viewTop + els.editor.clientHeight - lineHeight;
-  if (lineTop < viewTop) {
-    els.editor.scrollTop = Math.max(0, lineTop);
-  } else if (lineTop > viewBottom) {
-    els.editor.scrollTop = Math.max(0, lineTop - els.editor.clientHeight + lineHeight);
-  }
+  ensureLegacyDecorations().scrollToLine(lineNumber);
 }
 
 function updateLineHighlightPosition() {
   if (isCm6Mode()) {
     return;
   }
-  if (!els.editor || !els.lineHighlight || !state.stepLine) {
-    return;
-  }
-  const computed = getComputedStyle(els.editor);
-  const lineHeight = Number.parseFloat(computed.lineHeight) || 22;
-  const paddingTop = Number.parseFloat(computed.paddingTop) || 0;
-  const maxLine = Math.max(1, (els.editor.value || "").split("\n").length);
-  const lineNumber = Math.min(state.stepLine, maxLine);
-  const top = paddingTop + (lineNumber - 1) * lineHeight - els.editor.scrollTop;
-  els.lineHighlight.style.height = `${lineHeight}px`;
-  els.lineHighlight.style.transform = `translateY(${Math.round(top)}px)`;
-  els.lineHighlight.style.display = "block";
+  ensureLegacyDecorations().updateLineHighlightPosition();
 }
 
 function refreshEditorDecorations() {
+  const legacyDecorations = ensureLegacyDecorations();
   if (isCm6Mode()) {
-    if (els.editorHighlight) {
-      els.editorHighlight.textContent = "";
-    }
-    const lineNumbersContent = ensureLineNumbersContentElement();
-    if (lineNumbersContent) {
-      lineNumbersContent.textContent = "";
-    }
+    legacyDecorations.clear();
     return;
   }
-  if (!els.editorHighlight || !els.lineNumbers) {
-    return;
-  }
-  const code = els.editor.value || "";
-  els.editorHighlight.innerHTML = highlightPython(code);
-  const lineCount = Math.max(1, code.split("\n").length);
-  const lines = new Array(lineCount);
-  for (let i = 0; i < lineCount; i += 1) {
-    lines[i] = String(i + 1);
-  }
-  const lineNumbersContent = ensureLineNumbersContentElement();
-  if (!lineNumbersContent) {
-    return;
-  }
-  lineNumbersContent.textContent = lines.join("\n");
-  syncEditorScroll();
-  updateLineHighlightPosition();
-}
-
-function highlightPython(code) {
-  const keywordList = [
-    "and", "as", "assert", "break", "class", "continue", "def", "del", "elif", "else",
-    "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda",
-    "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield",
-    "True", "False", "None"
-  ];
-  const builtinList = [
-    "print", "input", "range", "len", "int", "float", "str", "list", "dict", "set",
-    "tuple", "open", "min", "max", "sum", "abs", "enumerate", "zip", "map", "filter"
-  ];
-  const keywordSet = new Set(keywordList);
-  const builtinSet = new Set(builtinList);
-  const keywordPattern = `(?:${keywordList.join("|")})`;
-  const builtinPattern = `(?:${builtinList.join("|")})`;
-  const tokenRegex = new RegExp(`\\b${keywordPattern}\\b|\\b${builtinPattern}\\b|\\b\\d+(?:\\.\\d+)?(?:e[+-]?\\d+)?\\b`, "g");
-  const numberRegex = /^\\d+(?:\\.\\d+)?(?:e[+-]?\\d+)?$/i;
-
-  let out = "";
-  let i = 0;
-  while (i < code.length) {
-    const ch = code[i];
-    const next3 = code.slice(i, i + 3);
-    if (next3 === "'''" || next3 === '"""') {
-      const end = code.indexOf(next3, i + 3);
-      const endIndex = end === -1 ? code.length : end + 3;
-      const chunk = code.slice(i, endIndex);
-      out += wrapToken(escapeHtml(chunk), "string");
-      i = endIndex;
-      continue;
-    }
-    if (ch === "'" || ch === '"') {
-      let j = i + 1;
-      let escaped = false;
-      while (j < code.length) {
-        const cj = code[j];
-        if (escaped) {
-          escaped = false;
-          j += 1;
-          continue;
-        }
-        if (cj === "\\") {
-          escaped = true;
-          j += 1;
-          continue;
-        }
-        if (cj === ch || cj === "\n") {
-          if (cj === ch) {
-            j += 1;
-          }
-          break;
-        }
-        j += 1;
-      }
-      const chunk = code.slice(i, j);
-      out += wrapToken(escapeHtml(chunk), "string");
-      i = j;
-      continue;
-    }
-    if (ch === "#") {
-      let j = i;
-      while (j < code.length && code[j] !== "\n") {
-        j += 1;
-      }
-      const chunk = code.slice(i, j);
-      out += wrapToken(escapeHtml(chunk), "comment");
-      i = j;
-      continue;
-    }
-    let j = i;
-    while (j < code.length) {
-      const cj = code[j];
-      if (cj === "#" || cj === "'" || cj === '"') {
-        break;
-      }
-      j += 1;
-    }
-    const chunk = code.slice(i, j);
-    out += highlightPlain(chunk, tokenRegex, numberRegex, keywordSet, builtinSet);
-    i = j;
-  }
-  return out;
-}
-
-function highlightPlain(text, tokenRegex, numberRegex, keywordSet, builtinSet) {
-  if (!text) {
-    return "";
-  }
-  let out = "";
-  let lastIndex = 0;
-  for (const match of text.matchAll(tokenRegex)) {
-    const index = match.index ?? 0;
-    const value = match[0];
-    out += escapeHtml(text.slice(lastIndex, index));
-    let type = "number";
-    if (numberRegex.test(value)) {
-      type = "number";
-    } else if (builtinSet.has(value)) {
-      type = "builtin";
-    } else if (keywordSet.has(value)) {
-      type = "keyword";
-    }
-    out += wrapToken(escapeHtml(value), type);
-    lastIndex = index + value.length;
-  }
-  out += escapeHtml(text.slice(lastIndex));
-  return out;
+  legacyDecorations.refresh();
 }
 
 function escapeHtml(value) {
-  return value
+  return String(value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function wrapToken(value, type) {
-  return `<span class="token ${type}">${value}</span>`;
 }
 function getDefaultModuleName() {
   const files = getCurrentFiles();
@@ -2251,12 +1980,10 @@ function applyEditorSettings() {
   if (els.turtleSpeedRange) {
     els.turtleSpeedRange.value = String(getTurtleSpeedIndex());
   }
-  if (els.editorHighlight && !isCm6Mode()) {
-    els.editorHighlight.style.tabSize = state.settings.tabSize;
-    els.editorHighlight.style.whiteSpace = state.settings.wordWrap ? "pre-wrap" : "pre";
-    els.editorHighlight.style.overflowWrap = state.settings.wordWrap ? "break-word" : "normal";
-    els.editorHighlight.style.wordBreak = state.settings.wordWrap ? "break-word" : "normal";
-  }
+  ensureLegacyDecorations().applySettings({
+    tabSize: state.settings.tabSize,
+    wordWrap: state.settings.wordWrap
+  });
   if (els.fontDecBtn) {
     els.fontDecBtn.disabled = fontSize <= EDITOR_FONT_MIN;
   }
@@ -3631,12 +3358,16 @@ function skulptRead(path) {
   const files = state.skulptFiles;
   const assets = state.skulptAssets;
   const normalized = normalizeSkulptPath(path);
+  const projectOverride = resolveProjectModuleOverridePath(path, normalized);
 
   if (files && files.has(normalized)) {
     return files.get(normalized);
   }
   if (assets && assets.has(normalized)) {
     return assets.get(normalized);
+  }
+  if (files && projectOverride && files.has(projectOverride)) {
+    return files.get(projectOverride);
   }
   if (Sk.builtinFiles && Sk.builtinFiles["files"] && Sk.builtinFiles["files"][path] !== undefined) {
     return Sk.builtinFiles["files"][path];
@@ -3661,6 +3392,17 @@ function normalizeSkulptPath(path) {
     return path;
   }
   return `/project/${path}`;
+}
+
+function resolveProjectModuleOverridePath(path, normalizedPath) {
+  const raw = String(path || "");
+  if (raw.startsWith("src/lib/")) {
+    return `/project/${raw.slice("src/lib/".length)}`;
+  }
+  if (String(normalizedPath || "").startsWith("/src/lib/")) {
+    return `/project/${String(normalizedPath).slice("/src/lib/".length)}`;
+  }
+  return null;
 }
 
 function buildSkulptFileMap(files) {
@@ -3977,123 +3719,6 @@ for name, module in list(sys.modules.items()):
         sys.modules.pop(name, None)
 `;
 
-
-function getTurtleSetupCode(assets) {
-  const assetNames = (assets || [])
-    .map((a) => String(a.name || ""))
-    .filter((name) => name && !name.startsWith("/") && isImageAsset(name));
-
-  return `
-import turtle
-import sys
-
-def _universal_reg(*args, **kwargs):
-    try:
-        name = None
-        shape = None
-        # Support both (name) and (self, name) or (name, shape) etc.
-        for a in args:
-            if isinstance(a, str):
-                if name is None: name = a
-            elif name is not None and shape is None:
-                shape = a
-        
-        if 'name' in kwargs: name = kwargs['name']
-        if 'shape' in kwargs: shape = kwargs['shape']
-        
-        if not isinstance(name, str) or not name or len(name) > 1000: return
-
-        s = turtle.Screen()
-        if not hasattr(s, '_shapes'): s._shapes = {}
-        
-        # Check if it's likely an image based on extension
-        lower_name = name.lower()
-        is_image = any(lower_name.endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"])
-        
-        # Find the Shape class robustly
-        ShapeClass = getattr(turtle, "Shape", None)
-        if not ShapeClass and hasattr(s, '_shapes') and s._shapes:
-            for val in s._shapes.values():
-                if hasattr(val, '_type'):
-                    ShapeClass = type(val)
-                    break
-
-        if ShapeClass:
-            if shape is not None:
-                s._shapes[name] = ShapeClass("polygon", shape)
-            elif is_image or name not in (s.getshapes() if hasattr(s, 'getshapes') else []):
-                s._shapes[name] = ShapeClass("image", name)
-        else:
-            s._shapes[name] = name
-    except:
-        pass
-
-# --- Class Method Patches ---
-
-# Patch Turtle.shape
-_orig_t_shape = turtle.Turtle.shape
-def _patched_t_shape(self, *args, **kwargs):
-    try:
-        name = None
-        for a in args:
-            if isinstance(a, str): name = a; break
-        if name: _universal_reg(name)
-    except: pass
-    return _orig_t_shape(self, *args, **kwargs)
-turtle.Turtle.shape = _patched_t_shape
-
-# Patch Screen.addshape
-turtle.Screen.addshape = _universal_reg
-turtle.Screen.register_shape = _universal_reg
-
-# Patch Screen.bgpic
-_orig_s_bgpic = turtle.Screen.bgpic
-def _patched_s_bgpic(self, *args, **kwargs):
-    try:
-        name = None
-        for a in args:
-            if isinstance(a, str): name = a; break
-        if name and name != "nopic": _universal_reg(name)
-    except: pass
-    return _orig_s_bgpic(self, *args, **kwargs)
-turtle.Screen.bgpic = _patched_s_bgpic
-
-# --- Module Function Patches ---
-
-# Patch turtle.addshape
-turtle.addshape = _universal_reg
-turtle.register_shape = _universal_reg
-
-# Patch turtle.shape
-_orig_mod_shape = turtle.shape
-def _patched_mod_shape(*args, **kwargs):
-    try:
-        name = None
-        for a in args:
-            if isinstance(a, str): name = a; break
-        if name: _universal_reg(name)
-    except: pass
-    return _orig_mod_shape(*args, **kwargs)
-turtle.shape = _patched_mod_shape
-
-# Patch turtle.bgpic
-_orig_mod_bgpic = turtle.bgpic
-def _patched_mod_bgpic(*args, **kwargs):
-    try:
-        name = None
-        for a in args:
-            if isinstance(a, str): name = a; break
-        if name and name != "nopic": _universal_reg(name)
-    except: pass
-    return _orig_mod_bgpic(*args, **kwargs)
-turtle.bgpic = _patched_mod_bgpic
-
-# Pre-register assets
-for n in ${JSON.stringify(assetNames)}:
-    _universal_reg(n)
-`;
-}
-
 function getActiveTabName() {
   if (!els.fileTabs) {
     return null;
@@ -4103,49 +3728,6 @@ function getActiveTabName() {
     return tab.dataset.name;
   }
   return tab ? tab.textContent : null;
-}
-
-const TURTLE_IMPORT_RE = /(^|\n)\s*(from\s+turtle\s+import\b|import\s+[^\n#]*\bturtle\b)/i;
-
-function detectTurtleUsage(files) {
-  if (!files || !files.length) {
-    return false;
-  }
-  // Recursive import scanner: only show turtle pane if graphics are reachable from main.py
-  const entryFile = files.find((f) => f.name === MAIN_FILE);
-  if (!entryFile) {
-    return false;
-  }
-
-  const visited = new Set();
-  const queue = [entryFile.name];
-  visited.add(entryFile.name);
-
-  while (queue.length > 0) {
-    const currentName = queue.shift();
-    const file = files.find((f) => f.name === currentName);
-    if (!file) {
-      continue;
-    }
-
-    const content = String(file.content ?? "");
-    if (TURTLE_IMPORT_RE.test(content)) {
-      return true;
-    }
-
-    // Find other project imports
-    const importRegex = /(?:^|\n)\s*(?:from|import)\s+([A-Za-z0-9._-]+)/g;
-    let match;
-    while ((match = importRegex.exec(content)) !== null) {
-      const importedModule = match[1].split(".")[0];
-      const fileName = `${importedModule}.py`;
-      if (!visited.has(fileName) && files.some((f) => f.name === fileName)) {
-        visited.add(fileName);
-        queue.push(fileName);
-      }
-    }
-  }
-  return false;
 }
 
 function setTurtlePaneVisible(visible) {
@@ -4275,14 +3857,14 @@ async function runActiveFile() {
     } catch (error) {
       // Ignore cleanup failures and proceed with execution.
     }
-    if (usesTurtle) {
-      const setupCode = getTurtleSetupCode(assets);
+    if (usesTurtle && CONFIG.ENABLE_TURTLE_IMAGE_COMPAT_PATCH) {
+      const setupCode = buildTurtleImagePatchCode(getTurtlePatchAssetNames(assets, isImageAsset));
       try {
         await Sk.misceval.asyncToPromise(() =>
-          Sk.importMainWithBody("__init_turtle__", false, setupCode, true)
+          Sk.importMainWithBody("__init_turtle_compat_patch__", false, setupCode, true)
         );
       } catch (err) {
-        console.warn("Turtle patch failed", err);
+        console.warn("Turtle image compat patch failed", err);
       }
     }
     await Sk.misceval.asyncToPromise(() =>

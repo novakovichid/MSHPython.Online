@@ -52,7 +52,7 @@
 - Любая деградация line mapping и визуальной синхронизации считается регрессией.
 - Любой risky change сопровождается обновлением тестов и документации.
 
-## Текущий статус (2026-02-07)
+## Текущий статус (2026-02-08)
 
 1. Phase 1 (dual-run foundation) внедрён:
    - добавлен adapter-layer (`cm6` + `legacy`) и factory,
@@ -67,3 +67,8 @@
    - macOS: `webkit`.
 4. WebKit остаётся release-gated через отдельный macOS job в CI; локально на Linux возможны инфраструктурные `WebKit internal error` при `page.goto`.
 5. Mirror-runtime выведен из активного контура и архивирован в `assets/archive/runtime-mirror/`; canonical runtime: `assets/skulpt-app.js` + `assets/skulpt-styles.css`.
+6. Выполнен Phase 2.1 (legacy isolation before removal gate):
+   - editor-код разнесён по доменным папкам `assets/editor-core/` и `assets/editor-legacy/`,
+   - legacy keyboard/decorations логика вынесена из `assets/skulpt-app.js` в отдельные legacy-модули,
+   - CM6 больше не использует legacy keydown forwarding,
+   - добавлены unit-тесты на shared command engine и mode-utils.

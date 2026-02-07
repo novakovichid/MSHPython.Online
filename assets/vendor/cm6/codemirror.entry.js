@@ -44,7 +44,7 @@ export function createCodeMirrorEditor({
   onDocChange,
   onSelectionChange,
   onScroll,
-  onForwardKeydown
+  onShortcutKeydown
 }) {
   if (!parent) {
     throw new Error("createCodeMirrorEditor: parent is required");
@@ -67,10 +67,10 @@ export function createCodeMirrorEditor({
 
   const domEvents = EditorView.domEventHandlers({
     keydown(event, view) {
-      if (typeof onForwardKeydown !== "function") {
+      if (typeof onShortcutKeydown !== "function") {
         return false;
       }
-      return Boolean(onForwardKeydown(event, view));
+      return Boolean(onShortcutKeydown(event, view));
     },
     scroll() {
       if (typeof onScroll === "function") {

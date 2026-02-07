@@ -104,41 +104,56 @@ Acceptance:
 3. Обновлённые тесты и CI-валидаторы.
 4. Документированный план и решение по удалению legacy.
 
-## Progress snapshot (2026-02-07)
+## Progress snapshot (2026-02-08)
 
 ### Done
 
-1. Добавлены модули:
-   - `assets/cm6-editor-adapter.js`
-   - `assets/legacy-editor-adapter.js`
-   - `assets/editor-adapter-factory.js`
+1. Нормализована структура editor-модулей:
+   - `assets/editor-core/cm6-editor-adapter.js`
+   - `assets/editor-legacy/legacy-editor-adapter.js`
+   - `assets/editor-core/editor-adapter-factory.js`
    - `assets/utils/editor-mode-utils.js`
-2. Добавлен локальный CM6 bundle pipeline:
+2. Добавлен shared command engine:
+   - `assets/editor-core/editor-command-transforms.js`
+   - `assets/editor-core/editor-shortcuts.js`
+   - `assets/editor-core/editor-command-runner.js`
+3. Legacy runtime-логика вынесена в отдельные модули:
+   - `assets/editor-legacy/legacy-editor-keydown.js`
+   - `assets/editor-legacy/legacy-editor-decorations.js`
+4. Удалена зависимость CM6 от legacy keydown forwarding:
+   - callback-контракт обновлён с `onForwardKeydown` на `onShortcutKeydown`.
+5. В `assets/skulpt-app.js` добавлен adapter-first helper слой:
+   - чтение текста/selection/scroll через `state.editorAdapter` как primary source.
+6. Добавлен локальный CM6 bundle pipeline:
    - `scripts/build-cm6-bundle.mjs`
    - `assets/vendor/cm6/codemirror.bundle.js`
-3. Внедрён UI toggle режима редактора в `editor-controls`.
-4. В runtime добавлены:
+7. Внедрён UI toggle режима редактора в `editor-controls`.
+8. В runtime добавлены:
    - `state.editorMode`,
    - переключение `cm6 <-> legacy` с сохранением текста/selection/scroll,
    - persistence режима в localStorage (`shp-editor-mode`),
    - query override (`?editor=cm6|legacy`).
-5. Расширены e2e-тесты:
+9. Добавлены unit-тесты для editor core:
+   - `tests/unit/editor-command-transforms.test.mjs`
+   - `tests/unit/editor-shortcuts.test.mjs`
+   - `tests/unit/editor-mode-utils.test.mjs`
+10. Расширены e2e-тесты:
    - editor mode tests,
    - расширенный `[editor-regression]`,
    - `legacy editor fallback sanity`.
-6. CI-структура на matrix:
+11. CI-структура на matrix:
    - Linux: Chromium + Firefox,
    - отдельный macOS job для WebKit.
-7. Выполнен aggressive cleanup архивных артефактов:
+12. Выполнен aggressive cleanup архивных артефактов:
    - mirror runtime перенесён в `assets/archive/runtime-mirror/`,
    - неиспользуемые ассеты и исходники перенесены в `assets/archive/dead-assets/` и `assets/archive/logo-sources/`.
-8. CI-gate усилен до полного `tests/ide.spec.js` в matrix:
+13. CI-gate усилен до полного `tests/ide.spec.js` в matrix:
    - Linux: `chromium` + `firefox`,
    - macOS: `webkit`.
 
 ### In progress
 
-1. Дополнительная стабилизация parity edge-cases по итогам полного matrix-прогона `tests/ide.spec.js`.
+1. Подготовка manual decision gate для удаления legacy (Phase 4 checklist).
 2. Embed-specific parity intentionally out of scope текущего шага.
 
 ### Notes

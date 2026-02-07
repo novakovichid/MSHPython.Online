@@ -183,6 +183,47 @@ async function runCodeExpectDone(page, code, outputPattern) {
   }
 }
 
+async function waitForTurtleCanvasReady(page) {
+  await page.waitForFunction(() => !document.querySelector("#turtle-pane")?.classList.contains("hidden"));
+  await page.waitForFunction(() => {
+    const host = document.querySelector("#turtle-canvas");
+    const canvas = document.querySelector("#turtle-canvas canvas");
+    if (!host || !canvas) {
+      return false;
+    }
+    const rect = host.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  });
+}
+
+async function runTurtleCodeExpectDone(page, code, outputPattern) {
+  await runCodeExpectDone(page, code, outputPattern);
+  await waitForTurtleCanvasReady(page);
+}
+
+async function isTurtlePaneVisible(page) {
+  return page.evaluate(() => !document.querySelector("#turtle-pane")?.classList.contains("hidden"));
+}
+
+async function getTurtleCanvasHash(page) {
+  return page.evaluate(() => {
+    const canvas = document.querySelector("#turtle-canvas canvas");
+    if (!canvas) {
+      return null;
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      return null;
+    }
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    let hash = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      hash = (hash + data[i] * 3 + data[i + 1] * 5 + data[i + 2] * 7 + data[i + 3]) % 1000000007;
+    }
+    return hash;
+  });
+}
+
 function extractLastLineNumber(text) {
   const matches = [...String(text || "").matchAll(/\bline\s+(\d+)\b/gi)];
   if (!matches.length) {
@@ -1043,6 +1084,177 @@ test("turtle shape changes canvas output", async ({ page }) => {
   expect(circleHash).not.toBe(classicHash);
 });
 
+test.describe("turtle runtime coverage", () => {
+  test("turtle: pane stays hidden for non-turtle run", async ({ page }) => {
+    await openProject(page, `turtle-no-import-${Date.now()}`);
+    await runCodeExpectDone(page, 'print("plain")\n', "plain");
+    expect(await isTurtlePaneVisible(page)).toBe(false);
+  });
+
+  test("turtle: direct import creates visible canvas", async ({ page }) => {
+    await openProject(page, `turtle-direct-${Date.now()}`);
+    await runTurtleCodeExpectDone(page, "import turtle\nt=turtle.Turtle()\nt.forward(20)\n");
+    expect(await isTurtlePaneVisible(page)).toBe(true);
+    expect(await getTurtleCanvasHash(page)).not.toBeNull();
+  });
+
+  test("turtle: from-import path works", async ({ page }) => {
+    await openProject(page, `turtle-from-${Date.now()}`);
+    await runTurtleCodeExpectDone(page, "from turtle import Turtle\nt=Turtle()\nt.forward(15)\n");
+    expect(await getTurtleCanvasHash(page)).not.toBeNull();
+  });
+
+  test("turtle: alias import path works", async ({ page }) => {
+    await openProject(page, `turtle-alias-${Date.now()}`);
+    await runTurtleCodeExpectDone(page, "import turtle as tr\nt=tr.Turtle()\nt.left(45)\nt.forward(18)\n");
+    expect(await getTurtleCanvasHash(page)).not.toBeNull();
+  });
+
+  test("turtle: local imported module enables turtle pane", async ({ page }) => {
+    await openSnapshot(page, {
+      title: "Turtle local module",
+      files: [
+        { name: "main.py", content: "import shapes\nshapes.draw()\n" },
+        { name: "shapes.py", content: "import turtle\ndef draw():\n    t=turtle.Turtle()\n    t.forward(20)\n" }
+      ],
+      lastActiveFile: "main.py"
+    });
+    await page.click("#run-btn");
+    await expect(page.locator("#run-status")).toHaveText("Готово", { timeout: 15000 });
+    await waitForTurtleCanvasReady(page);
+  });
+
+  test("turtle: transitive module chain enables turtle pane", async ({ page }) => {
+    await openSnapshot(page, {
+      title: "Turtle transitive module",
+      files: [
+        { name: "main.py", content: "import app\napp.run()\n" },
+        { name: "app.py", content: "import drawlib\ndef run():\n    drawlib.draw()\n" },
+        { name: "drawlib.py", content: "import turtle\ndef draw():\n    t=turtle.Turtle()\n    t.forward(22)\n" }
+      ],
+      lastActiveFile: "main.py"
+    });
+    await page.click("#run-btn");
+    await expect(page.locator("#run-status")).toHaveText("Готово", { timeout: 15000 });
+    await waitForTurtleCanvasReady(page);
+  });
+
+  test("turtle: unreachable turtle module does not enable pane", async ({ page }) => {
+    await openSnapshot(page, {
+      title: "Unreachable turtle module",
+      files: [
+        { name: "main.py", content: 'print("no turtle path")\n' },
+        { name: "hidden_turtle.py", content: "import turtle\n" }
+      ],
+      lastActiveFile: "main.py"
+    });
+    await page.click("#run-btn");
+    await expect(page.locator("#run-status")).toHaveText("Готово", { timeout: 15000 });
+    expect(await isTurtlePaneVisible(page)).toBe(false);
+  });
+
+  test("turtle: turtle run keeps stdout output", async ({ page }) => {
+    await openProject(page, `turtle-stdout-${Date.now()}`);
+    await runTurtleCodeExpectDone(page, 'import turtle\nt=turtle.Turtle()\nt.forward(1)\nprint("turtle-ok")\n', "turtle-ok");
+  });
+
+  test("turtle: input flow works with turtle run", async ({ page }) => {
+    await openProject(page, `turtle-input-${Date.now()}`);
+    await setEditorText(page, 'import turtle\nname=input("n? ")\nt=turtle.Turtle()\nt.forward(12)\nprint(name)\n');
+    await page.click("#run-btn");
+    await expect(page.locator("#console-input")).toBeEnabled({ timeout: 15000 });
+    await page.fill("#console-input", "Vasya");
+    await page.click("#console-send");
+    await expect(page.locator("#run-status")).toHaveText("Готово", { timeout: 15000 });
+    await expect(page.locator("#console-output")).toContainText("Vasya");
+    await waitForTurtleCanvasReady(page);
+  });
+
+  test("turtle: consecutive turtle runs update canvas output", async ({ page }) => {
+    await openProject(page, `turtle-rerun-${Date.now()}`);
+    await runTurtleCodeExpectDone(page, "import turtle\nt=turtle.Turtle()\nt.forward(30)\n");
+    const firstHash = await getTurtleCanvasHash(page);
+    await runTurtleCodeExpectDone(page, "import turtle\nt=turtle.Turtle()\nt.left(90)\nt.forward(30)\n");
+    const secondHash = await getTurtleCanvasHash(page);
+    expect(secondHash).not.toBe(firstHash);
+  });
+
+  test("turtle: non-turtle rerun hides pane after turtle run", async ({ page }) => {
+    await openProject(page, `turtle-hide-after-${Date.now()}`);
+    await runTurtleCodeExpectDone(page, "import turtle\nt=turtle.Turtle()\nt.forward(10)\n");
+    expect(await isTurtlePaneVisible(page)).toBe(true);
+    await runCodeExpectDone(page, 'print("done")\n', "done");
+    expect(await isTurtlePaneVisible(page)).toBe(false);
+  });
+
+  test("turtle: clear button resets turtle canvas state", async ({ page }) => {
+    await openProject(page, `turtle-clear-${Date.now()}`);
+    await runTurtleCodeExpectDone(page, "import turtle\nt=turtle.Turtle()\nfor _ in range(5):\n    t.forward(25)\n    t.left(72)\n");
+    const beforeClear = await getTurtleCanvasHash(page);
+    await page.click("#turtle-clear");
+    await page.waitForTimeout(120);
+    const afterClear = await getTurtleCanvasHash(page);
+    expect(afterClear).not.toBe(beforeClear);
+  });
+
+  test("turtle: square drawing commands execute successfully", async ({ page }) => {
+    await openProject(page, `turtle-square-${Date.now()}`);
+    await runTurtleCodeExpectDone(
+      page,
+      'import turtle\nt=turtle.Turtle()\nfor _ in range(4):\n    t.forward(30)\n    t.right(90)\nprint("square-done")\n',
+      "square-done"
+    );
+  });
+
+  test("turtle: goto command executes successfully", async ({ page }) => {
+    await openProject(page, `turtle-goto-${Date.now()}`);
+    await runTurtleCodeExpectDone(page, 'import turtle\nt=turtle.Turtle()\nt.goto(40, 20)\nprint("goto-done")\n', "goto-done");
+  });
+
+  test("turtle: heading and rotation commands execute successfully", async ({ page }) => {
+    await openProject(page, `turtle-heading-${Date.now()}`);
+    await runTurtleCodeExpectDone(
+      page,
+      'import turtle\nt=turtle.Turtle()\nt.setheading(90)\nt.forward(20)\nt.right(45)\nt.forward(10)\nprint("heading-done")\n',
+      "heading-done"
+    );
+  });
+
+  test("turtle: circle command executes successfully", async ({ page }) => {
+    await openProject(page, `turtle-circle-${Date.now()}`);
+    await runTurtleCodeExpectDone(page, 'import turtle\nt=turtle.Turtle()\nt.circle(35)\nprint("circle-done")\n', "circle-done");
+  });
+
+  test("turtle: dot command executes successfully", async ({ page }) => {
+    await openProject(page, `turtle-dot-${Date.now()}`);
+    await runTurtleCodeExpectDone(page, 'import turtle\nt=turtle.Turtle()\nt.dot(20, "red")\nprint("dot-done")\n', "dot-done");
+  });
+
+  test("turtle: style commands (color/pensize/fill) execute successfully", async ({ page }) => {
+    await openProject(page, `turtle-style-${Date.now()}`);
+    await runTurtleCodeExpectDone(
+      page,
+      'import turtle\nt=turtle.Turtle()\nt.color("blue")\nt.pensize(4)\nt.begin_fill()\nfor _ in range(3):\n    t.forward(25)\n    t.left(120)\nt.end_fill()\nprint("style-done")\n',
+      "style-done"
+    );
+  });
+
+  test("turtle: multiple turtles execute in one run", async ({ page }) => {
+    await openProject(page, `turtle-multi-${Date.now()}`);
+    await runTurtleCodeExpectDone(
+      page,
+      'import turtle\nt1=turtle.Turtle()\nt2=turtle.Turtle()\nt2.color("green")\nt1.forward(20)\nt2.left(90)\nt2.forward(20)\nprint("multi-done")\n',
+      "multi-done"
+    );
+  });
+
+  test("turtle: runtime error still reports and keeps turtle pane visible", async ({ page }) => {
+    await openProject(page, `turtle-runtime-error-${Date.now()}`);
+    await runCodeExpectError(page, "import turtle\nprint(undefined_name)\n", "NameError");
+    expect(await isTurtlePaneVisible(page)).toBe(true);
+  });
+});
+
 test("remix from shared snapshot creates regular project via modal", async ({ page }) => {
   const baseline = 'print("base")\n';
   const draft = 'print("draft change")\n';
@@ -1067,6 +1279,27 @@ test("remix from shared snapshot creates regular project via modal", async ({ pa
   await expect(page.locator("#project-mode")).toHaveText("Проект");
   await expect(page.locator("#editor")).toHaveValue(draft);
   await expect(page.locator("#project-title")).toHaveText("Remixed lesson");
+});
+
+test("snapshot run prefers local config.py over skulpt stdlib stub", async ({ page }) => {
+  await openSnapshot(page, {
+    title: "Local config import",
+    files: [
+      {
+        name: "main.py",
+        content: "from config import WIDTH\nprint(WIDTH)\n"
+      },
+      {
+        name: "config.py",
+        content: "WIDTH = 600\n"
+      }
+    ],
+    lastActiveFile: "main.py"
+  });
+
+  await page.click("#run-btn");
+  await expect(page.locator("#run-status")).toHaveText("Готово", { timeout: 15000 });
+  await expect(page.locator("#console-output")).toContainText("600");
 });
 
 test("reset snapshot restores baseline with confirmation", async ({ page }) => {
