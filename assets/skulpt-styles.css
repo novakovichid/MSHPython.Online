@@ -579,21 +579,26 @@ body {
   font-size: inherit;
   line-height: inherit;
   text-align: right;
-  white-space: pre;
   user-select: none;
-  overflow: auto;
+  overflow: hidden;
   min-width: 44px;
-  scrollbar-width: none;
+  position: relative;
 }
 
-.line-numbers::-webkit-scrollbar {
-  display: none;
+.line-numbers-content {
+  display: block;
+  white-space: pre;
+  line-height: inherit;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  pointer-events: none;
 }
 
 .editor-stack {
   position: relative;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
 .editor-line-highlight {
@@ -618,14 +623,11 @@ body {
   white-space: pre;
   overflow-wrap: normal;
   word-break: normal;
-  overflow: auto;
+  overflow: visible;
   pointer-events: none;
-  scrollbar-width: none;
   z-index: 1;
-}
-
-.editor-highlight::-webkit-scrollbar {
-  display: none;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
 }
 
 .editor-highlight .token.keyword {
