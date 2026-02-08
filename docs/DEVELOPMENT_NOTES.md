@@ -92,8 +92,9 @@ turtle.shape(shape_coords)
 - Для мобильных кнопок поддерживается touch-friendly размер (ориентир 44px по высоте).
 
 ### Что важно при правках
-- Изменения layout нужно вносить синхронно в `assets/skulpt-styles.css` и `assets/styles.css`.
-- JS-логику responsive/card state нужно дублировать в `assets/skulpt-app.js` и `assets/app.js`.
+- Изменения layout вносятся в `assets/skulpt-styles.css` (single-runtime).
+- JS-логика responsive/card state вносится в `assets/skulpt-app.js` (single-runtime).
+- Артефакты в `assets/archive/` считаются неисполняемым архивом и не подключаются в runtime.
 - После изменений обязательно проверять:
   - переключение карточек на mobile,
   - пост-run автопереход на `turtle/console`,

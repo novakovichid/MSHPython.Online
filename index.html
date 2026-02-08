@@ -10,6 +10,7 @@
   <link rel="icon"
     href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E🐍%3C/text%3E%3C/svg%3E" />
   <link rel="stylesheet" href="assets/skulpt-styles.css" />
+  <link rel="stylesheet" href="assets/editor-legacy/legacy-editor.css" />
 </head>
 
 <body>
@@ -148,6 +149,7 @@
             <button id="wrap-btn" class="btn chip hidden">Перенос: Выкл</button>
             <button id="font-dec-btn" class="btn ghost tiny" title="Уменьшить шрифт редактора">A-</button>
             <button id="font-inc-btn" class="btn ghost tiny" title="Увеличить шрифт редактора">A+</button>
+            <button id="editor-mode-toggle" class="btn ghost tiny" title="Переключить движок редактора">Редактор: CM6</button>
             <button id="hotkeys-btn" class="btn ghost tiny">&#1043;&#1086;&#1088;&#1103;&#1095;&#1080;&#1077;
               &#1082;&#1083;&#1072;&#1074;&#1080;&#1096;&#1080;</button>
             <button id="restart-ide-inline" class="btn ghost tiny restart-ide-inline hidden" data-action="restart-ide"
@@ -207,8 +209,8 @@
       title="Перезапустить IDE с очисткой кеша">Перезапуск IDE</button>
   </main>
 
-  <script src="vendor/skulpt/skulpt-dist-master/skulpt.js"></script>
-  <script src="vendor/skulpt/skulpt-dist-master/skulpt-stdlib.js"></script>
+  <script src="assets/vendor/skulpt/skulpt.js"></script>
+  <script src="assets/vendor/skulpt/skulpt-stdlib.js"></script>
   <script type="module" src="assets/skulpt-app.js?v=2"></script>
 </body>
 

@@ -24,6 +24,7 @@
 - Пользовательское руководство (Markdown): `docs/USER_GUIDE.md`
 - Техническое руководство: `docs/TECHNICAL_GUIDE.md`
 - План системного рефакторинга: `docs/REFACTOR_PLAN.md`
+- Runbook архивации legacy editor: `docs/LEGACY_ARCHIVE_RUNBOOK.md`
 - HTML-гайды:
   - Для пользователей: `docs/user_guide/for_users.html`
   - Для преподавателей: `docs/user_guide/for_teachers.html`
@@ -100,10 +101,10 @@ E2E в песочнице (Chromium):
 npx playwright test -c playwright.sandbox.config.cjs
 ```
 
-Editor regression в кросс-браузерной matrix (Chromium/Firefox/WebKit):
+Полный editor matrix (`tests/ide.spec.js` + `tests/ide.legacy.spec.js`) в кросс-браузерной matrix (Chromium/Firefox/WebKit):
 
 ```bash
-npx playwright test -c playwright.editor-matrix.config.cjs tests/ide.spec.js --grep "\\[editor-regression\\]"
+npx playwright test -c playwright.editor-matrix.config.cjs tests/ide.spec.js tests/ide.legacy.spec.js
 ```
 
 Запуск только snapshot/remix сценариев:
@@ -117,10 +118,15 @@ npx playwright test tests/ide.spec.js --grep "remix|snapshot"
 - `index.html` - основной интерфейс.
 - `assets/skulpt-app.js` - основной frontend runtime.
 - `assets/skulpt-styles.css` - основные стили интерфейса.
-- `assets/app.js`, `assets/styles.css` - параллельная/зеркальная реализация.
+- `assets/editor-core/` - shared editor core (adapter factory, CM6 adapter, command engine).
+- `assets/editor-legacy/` - legacy-only editor runtime (legacy adapter, keyboard/decorations path).
+- `assets/editor-legacy/legacy-editor.css` - isolated legacy-only editor styles.
+- `assets/archive/` - архив устаревших/неактуальных артефактов (без подключения в runtime).
 - `assets/utils/*.js` - утилиты.
-- `assets/worker.js` - worker-часть runtime.
-- `tests/` - e2e и unit тесты.
+- `assets/vendor/skulpt/` - локальный runtime Skulpt.
+- `tests/ide.spec.js` - основной e2e suite (CM6/general flows).
+- `tests/ide.legacy.spec.js` - legacy fallback e2e suite (archive-ready boundary).
+- `tests/unit/` - unit тесты.
 
 ## Ограничения
 
