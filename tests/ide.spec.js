@@ -216,11 +216,15 @@ async function getTurtleCanvasHash(page) {
       return null;
     }
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-    let hash = 0;
-    for (let i = 0; i < data.length; i += 4) {
-      hash = (hash + data[i] * 3 + data[i + 1] * 5 + data[i + 2] * 7 + data[i + 3]) % 1000000007;
+    let hash = 2166136261;
+    for (let i = 0; i < data.length; i += 1) {
+      hash ^= data[i];
+      hash = Math.imul(hash, 16777619);
     }
-    return hash;
+    hash ^= canvas.width;
+    hash = Math.imul(hash, 16777619);
+    hash ^= canvas.height;
+    return (hash >>> 0).toString(16);
   });
 }
 
