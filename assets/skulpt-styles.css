@@ -563,6 +563,7 @@ body {
   --code-font: "JetBrains Mono", monospace;
   --code-font-size: 14px;
   --code-line-height: 22px;
+  --editor-gutter-min-width: max(44px, calc(2ch + 16px));
   font-family: var(--code-font);
   font-size: var(--code-font-size);
   line-height: var(--code-line-height);
@@ -570,86 +571,11 @@ body {
   font-feature-settings: "liga" 0, "calt" 0;
 }
 
-.line-numbers {
-  padding: 14px 10px 14px 12px;
-  background: rgba(236, 243, 255, 0.95);
-  border-right: 1px solid var(--border);
-  color: var(--muted);
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-  text-align: right;
-  user-select: none;
-  overflow: hidden;
-  min-width: 44px;
-  position: relative;
-}
-
-.line-numbers-content {
-  display: block;
-  white-space: pre;
-  line-height: inherit;
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
-  pointer-events: none;
-}
-
 .editor-stack {
   position: relative;
   flex: 1;
   min-height: 0;
   overflow: hidden;
-}
-
-.editor-line-highlight {
-  position: absolute;
-  left: 0;
-  right: 0;
-  border-left: 3px solid var(--accent-2);
-  background: rgba(26, 181, 216, 0.16);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.editor-highlight {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  padding: 14px 16px;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-  color: #000000;
-  white-space: pre;
-  overflow-wrap: normal;
-  word-break: normal;
-  overflow: visible;
-  pointer-events: none;
-  z-index: 1;
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
-}
-
-.editor-highlight .token.keyword {
-  color: #c800a4;
-  font-weight: 400;
-}
-
-.editor-highlight .token.string {
-  color: #df0002;
-}
-
-.editor-highlight .token.comment {
-  color: #008a00;
-  font-style: normal;
-}
-
-.editor-highlight .token.number {
-  color: #3a00dc;
-}
-
-.editor-highlight .token.builtin {
-  color: #3a00dc;
 }
 
 .editor-toolbar {
@@ -750,11 +676,6 @@ body {
   pointer-events: none;
 }
 
-.editor-wrap.cm6-mode .line-numbers,
-.editor-wrap.cm6-mode .editor-highlight {
-  display: none;
-}
-
 .cm6-editor-host {
   position: absolute;
   inset: 0;
@@ -790,6 +711,11 @@ body {
 .cm6-editor-host .cm-gutters {
   border-right: 1px solid var(--border);
   background: rgba(236, 243, 255, 0.95);
+  min-width: var(--editor-gutter-min-width);
+}
+
+.cm6-editor-host .cm-lineNumbers {
+  min-width: var(--editor-gutter-min-width);
 }
 
 .console-pane {

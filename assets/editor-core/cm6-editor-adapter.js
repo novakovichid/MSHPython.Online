@@ -1,3 +1,5 @@
+import { runEditorCommand } from "./editor-command-runner.js";
+import { resolveEditorShortcut } from "./editor-shortcuts.js";
 import { createCodeMirrorEditor } from "../vendor/cm6/codemirror.bundle.js";
 
 function noop() { }
@@ -9,13 +11,23 @@ function fireSynthetic(target, type) {
   target.dispatchEvent(new Event(type, { bubbles: true }));
 }
 
+function notHandledResult() {
+  return {
+    handled: false,
+    changed: false,
+    valueChanged: false,
+    selectionChanged: false,
+    value: "",
+    selection: { start: 0, end: 0 }
+  };
+}
+
 export function createCm6EditorAdapter({
   editor,
   editorStack,
   editorWrap,
   editorHighlight,
-  lineNumbers,
-  onShortcutKeydown
+  lineNumbers
 }) {
   const changeHandlers = new Set();
   const scrollHandlers = new Set();
@@ -25,6 +37,7 @@ export function createCm6EditorAdapter({
   let detachMirrorInput = noop;
   let detachMirrorScroll = noop;
   let suppressMirrorSync = false;
+  let currentTabSize = 4;
 
   const emit = (handlers, payload) => {
     handlers.forEach((handler) => {
@@ -128,12 +141,55 @@ export function createCm6EditorAdapter({
     emit(scrollHandlers, toScroll());
   };
 
-  return {
+  const resolveLineStartSelection = (lineNumber) => {
+    const line = Math.max(1, Math.floor(Number(lineNumber) || 1));
+    const rows = String(adapter.getValue() || "").split("\n");
+    let from = 0;
+    for (let i = 0; i < Math.min(line - 1, rows.length); i += 1) {
+      from += rows[i].length + 1;
+    }
+    return { start: from, end: from };
+  };
+
+  const handleShortcutKeydown = (event, { tabSize = currentTabSize } = {}) => {
+    if (Number(tabSize) > 0) {
+      currentTabSize = Number(tabSize);
+    }
+    const command = resolveEditorShortcut(event);
+    if (!command) {
+      return notHandledResult();
+    }
+
+    const result = runEditorCommand({
+      adapter,
+      command,
+      tabSize: currentTabSize
+    });
+
+    if (!result.handled) {
+      return result;
+    }
+
+    if (event && typeof event.preventDefault === "function") {
+      event.preventDefault();
+    }
+    if (result.valueChanged) {
+      fireSynthetic(editor, "input");
+    } else if (result.selectionChanged) {
+      fireSynthetic(editor, "select");
+    }
+    return result;
+  };
+
+  const adapter = {
     kind: "cm6",
     init({ initialValue = "", readOnly = false, settings = {} } = {}) {
       const mount = ensureHost();
       if (!mount) {
         throw new Error("CM6 adapter init failed: editor host missing");
+      }
+      if (Number(settings?.tabSize) > 0) {
+        currentTabSize = Number(settings.tabSize);
       }
       applyCm6Visibility(true);
       cm6 = createCodeMirrorEditor({
@@ -175,10 +231,7 @@ export function createCm6EditorAdapter({
           emit(scrollHandlers, scroll);
         },
         onShortcutKeydown(event) {
-          if (typeof onShortcutKeydown !== "function") {
-            return false;
-          }
-          return Boolean(onShortcutKeydown(event));
+          return adapter.handleKeydown(event, { tabSize: currentTabSize }).handled;
         }
       });
       syncMirrorFromCm6();
@@ -251,11 +304,32 @@ export function createCm6EditorAdapter({
       }
     },
     applySettings(settings) {
+      if (Number(settings?.tabSize) > 0) {
+        currentTabSize = Number(settings.tabSize);
+      }
       cm6?.applySettings({
         tabSize: settings?.tabSize,
         wordWrap: settings?.wordWrap,
         fontSize: settings?.editorFontSize
       });
+    },
+    handleKeydown(event, { tabSize = currentTabSize } = {}) {
+      return handleShortcutKeydown(event, { tabSize });
+    },
+    refreshDecorations() { },
+    syncDecorationsScroll() { },
+    setLineHighlight(lineNumber) {
+      if (!Number.isFinite(lineNumber)) {
+        return;
+      }
+      adapter.scrollToLine(lineNumber);
+    },
+    clearLineHighlight() { },
+    scrollToLine(lineNumber) {
+      if (!Number.isFinite(lineNumber)) {
+        return;
+      }
+      adapter.setSelection(resolveLineStartSelection(lineNumber));
     },
     onChange(handler) {
       if (typeof handler !== "function") {
@@ -279,4 +353,6 @@ export function createCm6EditorAdapter({
       return () => selectionHandlers.delete(handler);
     }
   };
+
+  return adapter;
 }

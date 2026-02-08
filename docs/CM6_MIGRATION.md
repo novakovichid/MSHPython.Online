@@ -63,13 +63,30 @@ Acceptance:
 
 ## Phase 3 - Regression hardening
 
-1. Прогон полного `tests/ide.spec.js` в matrix (Chromium/Firefox/WebKit через актуальный CI flow).
+1. Прогон полного editor e2e набора (`tests/ide.spec.js` + `tests/ide.legacy.spec.js`) в matrix (Chromium/Firefox/WebKit через актуальный CI flow).
 2. Отдельная проверка `[editor-regression]` как release-critical subset.
 3. Добавление missing coverage для всех обнаруженных edge-cases.
 
 Acceptance:
 - зелёные обязательные пайплайны,
 - отсутствие известных редакторных дефектов класса scroll/caret drift.
+
+## Phase 2.2-2.5 - Archive-ready isolation (without archival)
+
+1. Закрыть adapter boundary: legacy и cm6 runtime операции доступны через единый контракт adapter API.
+2. Убрать прямые legacy-импорты из `assets/skulpt-app.js` и оставить orchestration только через `state.editorAdapter`.
+3. Изолировать legacy-only стили в отдельный файл (`assets/editor-legacy/legacy-editor.css`).
+4. Разделить e2e boundary:
+   - `tests/ide.spec.js` = CM6/general suite,
+   - `tests/ide.legacy.spec.js` = legacy fallback suite.
+5. Подготовить runbook отдельного процесса архивации (`docs/LEGACY_ARCHIVE_RUNBOOK.md`).
+
+Acceptance:
+- `assets/skulpt-app.js` не импортирует `assets/editor-legacy/*`,
+- legacy runtime доступен только через adapter factory + toggle flow,
+- legacy CSS и legacy e2e имеют отдельные file boundaries,
+- toggle остаётся рабочим и покрытым тестами,
+- legacy не архивируется в рамках текущего этапа.
 
 ## Phase 4 - Legacy removal decision gate
 
@@ -150,10 +167,21 @@ Acceptance:
 13. CI-gate усилен до полного `tests/ide.spec.js` в matrix:
    - Linux: `chromium` + `firefox`,
    - macOS: `webkit`.
+14. Закрыт adapter boundary для editor runtime:
+   - `assets/skulpt-app.js` не содержит прямых импортов из `assets/editor-legacy/*`,
+   - keydown/decorations/line highlight orchestration идёт через `state.editorAdapter`.
+15. Legacy-only стили изолированы в `assets/editor-legacy/legacy-editor.css`.
+16. Legacy e2e вынесены в отдельный suite `tests/ide.legacy.spec.js`.
+17. CI editor matrix запускает оба набора:
+   - `tests/ide.spec.js`,
+   - `tests/ide.legacy.spec.js`.
+18. Добавлен runbook отдельного процесса архивации legacy:
+   - `docs/LEGACY_ARCHIVE_RUNBOOK.md`.
+19. Зафиксирован единый контракт ширины gutter: `max(44px, calc(2ch + 16px))` для CM6 и Legacy.
 
 ### In progress
 
-1. Подготовка manual decision gate для удаления legacy (Phase 4 checklist).
+1. Отдельный процесс архивации legacy (вне текущего цикла; после archive-ready gate).
 2. Embed-specific parity intentionally out of scope текущего шага.
 
 ### Notes

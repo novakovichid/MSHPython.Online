@@ -3,10 +3,6 @@ import { mergeUniqueIds } from "./utils/recent-utils.js";
 import { getBaseName, createNumberedImportName } from "./utils/import-utils.js";
 import { cloneFilesForProject, resolveLastActiveFile } from "./utils/remix-utils.js";
 import { createEditorAdapter } from "./editor-core/editor-adapter-factory.js";
-import { runEditorCommand } from "./editor-core/editor-command-runner.js";
-import { resolveEditorShortcut } from "./editor-core/editor-shortcuts.js";
-import { createLegacyEditorDecorations } from "./editor-legacy/legacy-editor-decorations.js";
-import { handleLegacyEditorKeydown } from "./editor-legacy/legacy-editor-keydown.js";
 import { buildTurtleImagePatchCode } from "./compat/turtle-image-patch.js";
 import { detectTurtleUsage, getTurtlePatchAssetNames } from "./utils/turtle-runtime-utils.js";
 import {
@@ -118,7 +114,6 @@ const state = {
   mode: "landing",
   editorMode: DEFAULT_EDITOR_MODE,
   editorAdapter: null,
-  legacyDecorations: null,
   uiCard: "editor",
   project: null,
   snapshot: null,
@@ -354,10 +349,6 @@ function saveEditorMode(mode) {
   return safeLocalSet(EDITOR_MODE_STORAGE_KEY, normalizeEditorMode(mode, DEFAULT_EDITOR_MODE));
 }
 
-function isCm6Mode() {
-  return state.editorMode === "cm6";
-}
-
 function getEditorValue() {
   if (state.editorAdapter) {
     return state.editorAdapter.getValue();
@@ -385,25 +376,11 @@ function getEditorScroll() {
   };
 }
 
-function dispatchMirrorEditorEvent(type) {
-  if (!els.editor) {
-    return;
+function callEditorAdapterMethod(method, ...args) {
+  if (!state.editorAdapter || typeof state.editorAdapter[method] !== "function") {
+    return undefined;
   }
-  els.editor.dispatchEvent(new Event(type, { bubbles: true }));
-}
-
-function ensureLegacyDecorations() {
-  if (state.legacyDecorations) {
-    return state.legacyDecorations;
-  }
-  state.legacyDecorations = createLegacyEditorDecorations({
-    editor: els.editor,
-    editorHighlight: els.editorHighlight,
-    lineNumbers: els.lineNumbers,
-    getIsActive: () => !isCm6Mode(),
-    getEditorValue
-  });
-  return state.legacyDecorations;
+  return state.editorAdapter[method](...args);
 }
 
 function updateEditorModeToggleLabel() {
@@ -414,32 +391,6 @@ function updateEditorModeToggleLabel() {
   els.editorModeToggle.textContent = label;
   els.editorModeToggle.setAttribute("aria-label", label);
   els.editorModeToggle.setAttribute("aria-pressed", state.editorMode === "legacy" ? "true" : "false");
-}
-
-function handleEditorShortcutKeydown(event) {
-  const command = resolveEditorShortcut(event);
-  if (!command) {
-    return false;
-  }
-
-  const result = runEditorCommand({
-    adapter: state.editorAdapter,
-    command,
-    tabSize: state.settings.tabSize
-  });
-  if (!result.handled) {
-    return false;
-  }
-
-  if (event && typeof event.preventDefault === "function") {
-    event.preventDefault();
-  }
-  if (result.valueChanged) {
-    dispatchMirrorEditorEvent("input");
-  } else if (result.selectionChanged) {
-    dispatchMirrorEditorEvent("select");
-  }
-  return true;
 }
 
 function initEditorAdapter(mode, { preserve = false } = {}) {
@@ -466,8 +417,7 @@ function initEditorAdapter(mode, { preserve = false } = {}) {
     editorStack: els.editorStack,
     editorWrap: els.editorWrap,
     editorHighlight: els.editorHighlight,
-    lineNumbers: els.lineNumbers,
-    onShortcutKeydown: handleEditorShortcutKeydown
+    lineNumbers: els.lineNumbers
   });
   state.editorAdapter.init({
     initialValue: preservedValue,
@@ -526,7 +476,6 @@ async function init() {
     showToast("Storage fallback: changes will not persist in this browser.");
   }
   state.editorMode = loadEditorMode();
-  ensureLegacyDecorations();
   initEditorAdapter(state.editorMode);
   loadSettings();
   /**
@@ -1476,74 +1425,37 @@ function onEditorInput(event) {
 }
 
 function onEditorKeydown(event) {
-  if (isCm6Mode()) {
+  if (!state.editorAdapter || typeof state.editorAdapter.handleKeydown !== "function") {
     return;
   }
-  handleLegacyEditorKeydown({
-    event,
-    adapter: state.editorAdapter,
-    tabSize: state.settings.tabSize,
-    onAfterCommand(result) {
-      if (result.valueChanged) {
-        onEditorInput();
-        return;
-      }
-      refreshEditorDecorations();
-      scheduleEditorScrollSync();
-    }
-  });
+  state.editorAdapter.handleKeydown(event, { tabSize: state.settings.tabSize });
 }
 
 function syncEditorScroll() {
-  if (isCm6Mode()) {
-    return;
-  }
-  ensureLegacyDecorations().syncScroll();
+  callEditorAdapterMethod("syncDecorationsScroll");
 }
 
 function setEditorLineHighlight(lineNumber) {
   if (!Number.isFinite(lineNumber)) {
     return;
   }
-  if (isCm6Mode()) {
-    scrollEditorToLine(lineNumber);
-    return;
-  }
-  ensureLegacyDecorations().setLineHighlight(lineNumber);
+  callEditorAdapterMethod("setLineHighlight", lineNumber);
 }
 
 function clearEditorLineHighlight() {
-  ensureLegacyDecorations().clearLineHighlight();
+  callEditorAdapterMethod("clearLineHighlight");
 }
 
 function scrollEditorToLine(lineNumber) {
-  if (isCm6Mode() && state.editorAdapter) {
-    const line = Math.max(1, Math.floor(Number(lineNumber) || 1));
-    const rows = getEditorValue().split("\n");
-    let from = 0;
-    for (let i = 0; i < Math.min(line - 1, rows.length); i += 1) {
-      from += rows[i].length + 1;
-    }
-    state.editorAdapter.setSelection({ start: from, end: from });
-    return;
-  }
-  ensureLegacyDecorations().scrollToLine(lineNumber);
+  callEditorAdapterMethod("scrollToLine", lineNumber);
 }
 
 function updateLineHighlightPosition() {
-  if (isCm6Mode()) {
-    return;
-  }
-  ensureLegacyDecorations().updateLineHighlightPosition();
+  callEditorAdapterMethod("syncDecorationsScroll");
 }
 
 function refreshEditorDecorations() {
-  const legacyDecorations = ensureLegacyDecorations();
-  if (isCm6Mode()) {
-    legacyDecorations.clear();
-    return;
-  }
-  legacyDecorations.refresh();
+  callEditorAdapterMethod("refreshDecorations");
 }
 
 function escapeHtml(value) {
@@ -1980,10 +1892,6 @@ function applyEditorSettings() {
   if (els.turtleSpeedRange) {
     els.turtleSpeedRange.value = String(getTurtleSpeedIndex());
   }
-  ensureLegacyDecorations().applySettings({
-    tabSize: state.settings.tabSize,
-    wordWrap: state.settings.wordWrap
-  });
   if (els.fontDecBtn) {
     els.fontDecBtn.disabled = fontSize <= EDITOR_FONT_MIN;
   }

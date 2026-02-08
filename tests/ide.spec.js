@@ -428,6 +428,28 @@ test("line numbers match editor metrics", async ({ page }) => {
   expect(metrics.numbersLineHeight).toBe(metrics.editorLineHeight);
 });
 
+test("line number gutter keeps minimum readable width in cm6", async ({ page }) => {
+  await openProject(page, `gutter-width-cm6-${Date.now()}`);
+  const cm6Metrics = await page.evaluate(() => {
+    const gutters = document.querySelector(".cm6-editor-host .cm-gutters");
+    const lineNumbers = document.querySelector(".cm6-editor-host .cm-lineNumbers");
+    if (!gutters || !lineNumbers) {
+      return null;
+    }
+    const guttersStyle = window.getComputedStyle(gutters);
+    const lineNumbersStyle = window.getComputedStyle(lineNumbers);
+    return {
+      guttersMinWidth: Number.parseFloat(guttersStyle.minWidth),
+      lineNumbersMinWidth: Number.parseFloat(lineNumbersStyle.minWidth),
+      guttersWidth: gutters.getBoundingClientRect().width
+    };
+  });
+  expect(cm6Metrics).not.toBeNull();
+  expect(cm6Metrics.guttersMinWidth).toBeGreaterThanOrEqual(44);
+  expect(cm6Metrics.lineNumbersMinWidth).toBeGreaterThanOrEqual(44);
+  expect(cm6Metrics.guttersWidth).toBeGreaterThanOrEqual(44);
+});
+
 test("editor font controls change font size and keep layers aligned", async ({ page }) => {
   await openProject(page, `font-controls-${Date.now()}`);
   await expect(page.locator("#font-dec-btn")).toBeVisible();
@@ -522,13 +544,6 @@ test("editor mode defaults to cm6 without storage/query", async ({ page }) => {
   await page.evaluate(() => localStorage.removeItem("shp-editor-mode"));
   await openProject(page, `mode-default-${Date.now()}`);
   await expect(page.locator("#editor-mode-toggle")).toContainText("CM6");
-});
-
-test("query editor=legacy overrides stored cm6", async ({ page }) => {
-  await page.goto("/#/");
-  await page.evaluate(() => localStorage.setItem("shp-editor-mode", "cm6"));
-  await openProject(page, `mode-query-legacy-${Date.now()}`, { editorMode: "legacy" });
-  await expect(page.locator("#editor-mode-toggle")).toContainText("Legacy");
 });
 
 test("editor mode toggle persists to localStorage", async ({ page }) => {
@@ -765,59 +780,6 @@ test.describe("editor interaction regressions", () => {
       await page.keyboard.down("Shift");
       await page.keyboard.press(i % 2 === 0 ? "ArrowDown" : "ArrowUp");
       await page.keyboard.up("Shift");
-      const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
-      expectEditorLayersInSync(metrics);
-    }
-  });
-});
-
-test.describe("legacy editor fallback sanity", () => {
-  test("[legacy] slow/fast wheel sync", async ({ page }) => {
-    await openFreshProjectWithLongCode(page, "legacy-wheel", { editorMode: "legacy" });
-    await expect(page.locator("#editor-mode-toggle")).toContainText("Legacy");
-    await page.locator("#editor").click();
-    for (let i = 0; i < 4; i += 1) {
-      await page.mouse.wheel(0, 320);
-    }
-    for (let i = 0; i < 3; i += 1) {
-      await page.mouse.wheel(0, -240);
-    }
-    const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
-    expectEditorLayersInSync(metrics);
-  });
-
-  test("[legacy] selection with autoscroll", async ({ page }) => {
-    await openFreshProjectWithLongCode(page, "legacy-selection", { editorMode: "legacy" });
-    const editor = page.locator("#editor");
-    const box = await editor.boundingBox();
-    await page.mouse.move(box.x + 20, box.y + 20);
-    await page.mouse.down();
-    for (let i = 0; i < 5; i += 1) {
-      await page.mouse.move(box.x + 28, box.y + box.height - 8, { steps: 3 });
-      await page.mouse.wheel(0, 180);
-    }
-    await page.mouse.up();
-    const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
-    expect(metrics.selectionEnd).toBeGreaterThan(metrics.selectionStart);
-    expectEditorLayersInSync(metrics);
-  });
-
-  test("[legacy] font change + selection remains aligned", async ({ page }) => {
-    await openFreshProjectWithLongCode(page, "legacy-font", { editorMode: "legacy" });
-    await page.click("#font-inc-btn");
-    await page.locator("#editor").click();
-    await page.keyboard.press(process.platform === "darwin" ? "Meta+a" : "Control+a");
-    const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
-    expect(metrics.selectionEnd).toBeGreaterThan(metrics.selectionStart);
-    expectEditorLayersInSync(metrics);
-  });
-
-  test("[legacy] repeated scroll/select cycles stay stable", async ({ page }) => {
-    await openFreshProjectWithLongCode(page, "legacy-cycles", { editorMode: "legacy" });
-    for (let i = 0; i < 4; i += 1) {
-      await page.locator("#editor").click();
-      await page.mouse.wheel(0, i % 2 === 0 ? 300 : -260);
-      await page.keyboard.press(process.platform === "darwin" ? "Meta+l" : "Control+l");
       const metrics = await getEditorSyncMetrics(page, { scrollToBottom: false });
       expectEditorLayersInSync(metrics);
     }

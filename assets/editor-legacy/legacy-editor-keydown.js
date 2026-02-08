@@ -1,6 +1,17 @@
 import { runEditorCommand } from "../editor-core/editor-command-runner.js";
 import { resolveEditorShortcut } from "../editor-core/editor-shortcuts.js";
 
+function notHandledResult() {
+  return {
+    handled: false,
+    changed: false,
+    valueChanged: false,
+    selectionChanged: false,
+    value: "",
+    selection: { start: 0, end: 0 }
+  };
+}
+
 export function handleLegacyEditorKeydown({
   event,
   adapter,
@@ -9,7 +20,7 @@ export function handleLegacyEditorKeydown({
 } = {}) {
   const command = resolveEditorShortcut(event);
   if (!command) {
-    return false;
+    return notHandledResult();
   }
 
   const result = runEditorCommand({
@@ -19,7 +30,7 @@ export function handleLegacyEditorKeydown({
   });
 
   if (!result.handled) {
-    return false;
+    return result;
   }
 
   if (event && typeof event.preventDefault === "function") {
@@ -30,5 +41,5 @@ export function handleLegacyEditorKeydown({
     onAfterCommand(result);
   }
 
-  return true;
+  return result;
 }

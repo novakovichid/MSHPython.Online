@@ -1,8 +1,30 @@
+import { createLegacyEditorDecorations } from "./legacy-editor-decorations.js";
+import { handleLegacyEditorKeydown } from "./legacy-editor-keydown.js";
+
 function noop() { }
+
+function fireSynthetic(target, type) {
+  if (!target) {
+    return;
+  }
+  target.dispatchEvent(new Event(type, { bubbles: true }));
+}
+
+function notHandledResult() {
+  return {
+    handled: false,
+    changed: false,
+    valueChanged: false,
+    selectionChanged: false,
+    value: "",
+    selection: { start: 0, end: 0 }
+  };
+}
 
 export function createLegacyEditorAdapter({
   editor,
   editorStack,
+  editorWrap,
   editorHighlight,
   lineNumbers
 }) {
@@ -12,6 +34,7 @@ export function createLegacyEditorAdapter({
   let detachInput = noop;
   let detachScroll = noop;
   let detachSelect = noop;
+  let decorations = null;
 
   const emit = (handlers, payload) => {
     handlers.forEach((handler) => {
@@ -40,6 +63,9 @@ export function createLegacyEditorAdapter({
       editor.classList.toggle("cm6-source-hidden", !active);
       editor.removeAttribute("aria-hidden");
       editor.tabIndex = active ? 0 : -1;
+    }
+    if (editorWrap) {
+      editorWrap.classList.remove("cm6-mode");
     }
     if (editorStack) {
       editorStack.classList.toggle("cm6-active", false);
@@ -98,14 +124,34 @@ export function createLegacyEditorAdapter({
     editor.scrollLeft = Number(left) || 0;
   };
 
-  return {
+  const ensureDecorations = () => {
+    if (decorations) {
+      return decorations;
+    }
+    decorations = createLegacyEditorDecorations({
+      editor,
+      editorHighlight,
+      lineNumbers,
+      getEditorValue: getValue
+    });
+    return decorations;
+  };
+
+  const adapter = {
     kind: "legacy",
-    init({ initialValue = "", readOnly = false } = {}) {
+    init({ initialValue = "", readOnly = false, settings = {} } = {}) {
       setLegacyVisibility(true);
       setValue(initialValue);
       if (editor) {
         editor.readOnly = Boolean(readOnly);
       }
+      const runtimeDecorations = ensureDecorations();
+      runtimeDecorations.applySettings({
+        tabSize: settings?.tabSize,
+        wordWrap: settings?.wordWrap
+      });
+      runtimeDecorations.refresh();
+      runtimeDecorations.syncScroll();
       detachInput();
       detachScroll();
       detachSelect();
@@ -120,6 +166,9 @@ export function createLegacyEditorAdapter({
       detachInput = noop;
       detachScroll = noop;
       detachSelect = noop;
+      if (decorations) {
+        decorations.clear();
+      }
       changeHandlers.clear();
       scrollHandlers.clear();
       selectionHandlers.clear();
@@ -140,7 +189,51 @@ export function createLegacyEditorAdapter({
         editor.readOnly = Boolean(readOnly);
       }
     },
-    applySettings() { },
+    applySettings(settings = {}) {
+      ensureDecorations().applySettings({
+        tabSize: settings?.tabSize,
+        wordWrap: settings?.wordWrap
+      });
+    },
+    handleKeydown(event, { tabSize = 4 } = {}) {
+      const result = handleLegacyEditorKeydown({
+        event,
+        adapter,
+        tabSize,
+        onAfterCommand(commandResult) {
+          if (commandResult.selectionChanged) {
+            ensureDecorations().syncScroll();
+          }
+        }
+      });
+      if (!result.handled) {
+        return notHandledResult();
+      }
+      if (result.valueChanged) {
+        fireSynthetic(editor, "input");
+      } else if (result.selectionChanged) {
+        fireSynthetic(editor, "select");
+      }
+      return result;
+    },
+    refreshDecorations() {
+      ensureDecorations().refresh();
+    },
+    syncDecorationsScroll() {
+      ensureDecorations().syncScroll();
+    },
+    setLineHighlight(lineNumber) {
+      if (!Number.isFinite(lineNumber)) {
+        return;
+      }
+      ensureDecorations().setLineHighlight(lineNumber);
+    },
+    clearLineHighlight() {
+      ensureDecorations().clearLineHighlight();
+    },
+    scrollToLine(lineNumber) {
+      ensureDecorations().scrollToLine(lineNumber);
+    },
     onChange(handler) {
       if (typeof handler !== "function") {
         return noop;
@@ -163,4 +256,6 @@ export function createLegacyEditorAdapter({
       return () => selectionHandlers.delete(handler);
     }
   };
+
+  return adapter;
 }

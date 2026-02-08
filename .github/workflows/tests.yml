@@ -45,7 +45,7 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: Full IDE spec (matrix)
-        run: npx playwright test -c playwright.editor-matrix.config.cjs tests/ide.spec.js --project=${{ matrix.browser }}
+        run: npx playwright test -c playwright.editor-matrix.config.cjs tests/ide.spec.js tests/ide.legacy.spec.js --project=${{ matrix.browser }}
 
   e2e-editor-webkit-macos:
     needs: unit
@@ -62,7 +62,7 @@ jobs:
       - name: Install Playwright WebKit
         run: npx playwright install webkit
       - name: Full IDE spec (webkit)
-        run: npx playwright test -c playwright.editor-matrix.config.cjs tests/ide.spec.js --project=webkit
+        run: npx playwright test -c playwright.editor-matrix.config.cjs tests/ide.spec.js tests/ide.legacy.spec.js --project=webkit
 
   docs:
     if: "${{ github.event_name == 'push' && !contains(github.event.head_commit.message, 'docs: auto-update API docs') }}"

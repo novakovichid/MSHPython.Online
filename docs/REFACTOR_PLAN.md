@@ -40,14 +40,14 @@
 1. Подготовка dual-run инфраструктуры (`cm6` default, `legacy` fallback).
 2. Перенос всего редакторного функционала на CM6.
 3. Параллельная стабилизация и регрессионные прогоны.
-4. Ручной decision gate на удаление legacy.
-5. Удаление legacy-кода и зачистка хвостов.
+4. Полная подготовка `archive-ready` (без архивации legacy в этом цикле).
+5. Отдельный процесс архивации legacy (вне текущего цикла).
 
 Детальный инженерный план см. в `docs/CM6_MIGRATION.md`.
 
 ## Guardrails
 
-- Ни один шаг не принимается без зелёных unit + полного `tests/ide.spec.js` в актуальном CI flow.
+- Ни один шаг не принимается без зелёных unit + полного editor e2e набора (`tests/ide.spec.js` + `tests/ide.legacy.spec.js`) в актуальном CI flow.
 - `editor-regression` обязателен как release gate.
 - Любая деградация line mapping и визуальной синхронизации считается регрессией.
 - Любой risky change сопровождается обновлением тестов и документации.
@@ -62,7 +62,7 @@
    - добавлены editor mode tests,
    - расширен `editor-regression` набор,
    - добавлен sanity-набор для legacy fallback.
-3. CI matrix усилен до полного `tests/ide.spec.js`:
+3. CI matrix усилен до полного editor e2e набора:
    - Linux: `chromium` + `firefox`,
    - macOS: `webkit`.
 4. WebKit остаётся release-gated через отдельный macOS job в CI; локально на Linux возможны инфраструктурные `WebKit internal error` при `page.goto`.
@@ -72,3 +72,10 @@
    - legacy keyboard/decorations логика вынесена из `assets/skulpt-app.js` в отдельные legacy-модули,
    - CM6 больше не использует legacy keydown forwarding,
    - добавлены unit-тесты на shared command engine и mode-utils.
+7. Выполнен Phase 2.2-2.5 (archive-ready preparation):
+   - `assets/skulpt-app.js` больше не импортирует `assets/editor-legacy/*` напрямую,
+   - adapter boundary расширен: editor runtime orchestration идёт через API адаптера,
+   - legacy-only стили изолированы в `assets/editor-legacy/legacy-editor.css`,
+   - legacy e2e вынесены в `tests/ide.legacy.spec.js`,
+   - добавлен `docs/LEGACY_ARCHIVE_RUNBOOK.md` для отдельного процесса архивации,
+   - зафиксирован контракт ширины gutter `max(44px, calc(2ch + 16px))` в CM6 и legacy.
