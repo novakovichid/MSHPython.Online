@@ -550,6 +550,15 @@ test("editor mode defaults to cm6 without storage/query", async ({ page }) => {
   await expect(page.locator("#editor-mode-toggle")).toContainText("CM6");
 });
 
+test("cm6 uses the configured four-space indentation", async ({ page }) => {
+  await openProject(page, `indent-size-cm6-${Date.now()}`, { editorMode: "cm6" });
+  await setEditorText(page, "if True:");
+  await focusEditor(page);
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await expect.poll(() => getEditorValue(page)).toBe("if True:\n    ");
+});
+
 test("editor mode toggle persists to localStorage", async ({ page }) => {
   await openProject(page, `mode-persist-${Date.now()}`);
   await page.click("#editor-mode-toggle");

@@ -13,6 +13,7 @@ import {
 import {
   bracketMatching,
   HighlightStyle,
+  indentUnit,
   indentOnInput,
   syntaxHighlighting
 } from "@codemirror/language";
@@ -114,7 +115,10 @@ export function createCodeMirrorEditor({
   const settingsState = normalizeSettings(settings);
 
   const getWrapExtension = (enabled) => (enabled ? EditorView.lineWrapping : []);
-  const getTabExtension = (value) => EditorState.tabSize.of(value);
+  const getIndentationExtensions = (value) => [
+    EditorState.tabSize.of(value),
+    indentUnit.of(" ".repeat(value))
+  ];
   const getReadOnlyExtension = (value) => EditorState.readOnly.of(value);
   const getEditableExtension = (value) => EditorView.editable.of(!value);
 
@@ -164,7 +168,7 @@ export function createCodeMirrorEditor({
     highlightActiveLine(),
     syntaxHighlighting(legacyHighlightStyle, { fallback: true }),
     languageCompartment.of(python()),
-    tabSizeCompartment.of(getTabExtension(settingsState.tabSize)),
+    tabSizeCompartment.of(getIndentationExtensions(settingsState.tabSize)),
     wrapCompartment.of(getWrapExtension(settingsState.wordWrap)),
     readOnlyCompartment.of(getReadOnlyExtension(readOnly)),
     editableCompartment.of(getEditableExtension(readOnly)),
@@ -249,7 +253,7 @@ export function createCodeMirrorEditor({
     settingsState.fontSize = normalized.fontSize;
     view.dispatch({
       effects: [
-        tabSizeCompartment.reconfigure(getTabExtension(settingsState.tabSize)),
+        tabSizeCompartment.reconfigure(getIndentationExtensions(settingsState.tabSize)),
         wrapCompartment.reconfigure(getWrapExtension(settingsState.wordWrap))
       ]
     });
